@@ -173,8 +173,8 @@ if 'pedido_exitoso' not in st.session_state: st.session_state.pedido_exitoso = F
 
 # --- 6. SIDEBAR ---
 with st.sidebar:
-    if os.path.exists("logo.png"): 
-        st.image("logo.png", caption="Tu point en el Callao", use_container_width=True)
+    if os.path.exists("WhatsApp Image 2026-03-27 at 01.27.46.jpeg"): 
+        st.image("WhatsApp Image 2026-03-27 at 01.27.46.jpeg", caption="Aquí no solo vendemos snacks, vendemos el momento más rico de tu tarde.", use_container_width=True)
     st.markdown("---")
     pwd = st.text_input("🔑 Acceso Admin", type="password")
     opciones = ["🛒 Tienda Online", "✍️ Dejar Reseña"]
@@ -202,8 +202,8 @@ if menu == "🛒 Tienda Online":
     c_ia1, c_ia2 = st.columns([1, 4])
     
     with c_ia1:
-        if os.path.exists("WhatsApp Image 2026-03-27 at 01.27.46.jpeg"):
-            st.image("WhatsApp Image 2026-03-27 at 01.27.46.jpeg")
+        if os.path.exists("logo.png"):
+            st.image("logo.png")
     
     with c_ia2:
         if not st.session_state.nombre_usuario:
