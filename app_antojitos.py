@@ -34,7 +34,18 @@ st.markdown("""
         font-size: 65px;
         text-align: center;
         padding: 10px;
-        margin-top: -30px; /* Sube el título para quitar el espacio vacío */
+        margin-top: -30px;
+    }
+    
+    /* ¡NUEVO! Ajuste para que el nombre no se corte en celulares */
+    @media (max-width: 600px) {
+        .main-title {
+            font-size: 40px !important; /* Letra más chica en móvil */
+            text-shadow: 2px 2px 0px #FF4500 !important;
+        }
+        .subtitle {
+            font-size: 14px !important;
+        }
     }
     
     .subtitle {
@@ -48,6 +59,26 @@ st.markdown("""
         letter-spacing: 2px;
     }
 
+    /* --- AGRANDAR TEXTOS ESPECÍFICOS (FLECHAS) --- */
+    /* Texto de ayuda arriba del nombre */
+    .stMarkdown p {
+        font-size: 20px !important;
+        line-height: 1.5;
+    }
+
+    /* Etiqueta "¿Dónde entregamos?" */
+    label[data-testid="stWidgetLabel"] p {
+        font-size: 24px !important;
+        font-weight: bold !important;
+        color: #333 !important;
+    }
+
+    /* Texto dentro del selector */
+    .stSelectbox div[data-baseweb="select"] {
+        font-size: 18px !important;
+    }
+
+    /* --- OTROS ESTILOS --- */
     .stButton>button { 
         border-radius: 20px; font-weight: bold; background-color: #FF4500; 
         color: white; border: none; transition: 0.3s;
@@ -275,7 +306,7 @@ if menu == "🛒 Tienda Online":
         metodo = st.radio("Método de Pago", ["Yape / Plin", "Efectivo"])
         cap = None; vuelto = 0
         if metodo == "Yape / Plin":
-            st.info("📱 Yape/Plin al 963 142 733 (Gerson P.)")
+            st.info("📱 Yape/Plin al 963 142 733 (Paula Ottiniano)")
             cap = st.file_uploader("Sube tu captura de pago")
         else:
             vuelto = st.number_input("¿Con cuánto pagarás?", min_value=total)
