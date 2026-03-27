@@ -1,0 +1,5 @@
+# Ignorar base de datos local y fotos temporales
+antojitos_jorpao.db
+__pycache__/
+.venv/
+.env

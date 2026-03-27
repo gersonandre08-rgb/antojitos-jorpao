@@ -1,0 +1,7 @@
+[client]
+showErrorDetails = false
+
+[deprecation]
+showPyplotGlobalUse = false
+showfileUploaderEncoding = false
+showImageWidth = false
