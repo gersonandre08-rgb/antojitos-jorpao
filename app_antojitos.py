@@ -109,7 +109,7 @@ st.markdown("""
     </style>
     
     <div class="main-title">ANTOJITOS JORPAO</div>
-    <div class="subtitle">¡EL SABOR QUE TE PONE PILAS, SOBRINO!</div>
+    <div class="subtitle">¡ENDULZAMOS TU DIA, VECINO/A!</div>
     """, unsafe_allow_html=True)
 
 # --- 3. GESTIÓN DE BASE DE DATOS ---
@@ -135,16 +135,16 @@ if not os.path.exists("img_productos"): os.makedirs("img_productos")
 if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
 init_db()
 
-# --- 4. LÓGICA DE IA (TÍA JORPAO CON GEMINI) ---
+# --- 4. LÓGICA DE IA (VECINA JORPAO CON GEMINI) ---
 def consultar_tia_gemini(user_query, nombre, productos):
     prods_str = ", ".join([p['nombre'] for p in productos])
-    parentesco = "sobrina" if nombre.lower().endswith('a') else "sobrino"
+    parentesco = "vecina" if nombre.lower().endswith('a') else "vecino"
     hora = datetime.now().hour
     saludo = "¡Buen día!" if 5 <= hora < 12 else "¡Buenas tardes!" if 12 <= hora < 19 else "¡Buenas noches!"
     
     prompt = f"""
-    Eres la 'Tía JorPao', dueña de un negocio de antojitos en el Callao. 
-    Eres criolla, divertida y hablas con mucha chispa (jerga peruana amigable).
+    Eres la 'Vecina JorPao', dueña de un negocio de antojitos en el Callao. 
+    Eres criolla, divertida y hablas con mucha chispa (jerga peruana amigable pero con respeto).
     Tu cliente se llama {nombre}, trátalo como {parentesco}.
     Empieza con este saludo: '{saludo}'.
     Usa frases como: 'Te doy tu ayudín', 'Yo te aviento la boya', 'Te hago la gauchada', 'Te hago la taba'.
@@ -192,7 +192,7 @@ if menu == "🛒 Tienda Online":
 
     if st.session_state.pedido_exitoso:
         st.balloons()
-        st.success("## ✅ ¡Pedido recibido! La tía ya se puso el delantal.")
+        st.success("## ✅ ¡Pedido recibido! La vecina ya se puso a preparar el pedido. No olvides enviar la confirmación")
         st.markdown(f'<a href="https://wa.me/51963142733?text=Hola%20JorPao!%20Confirmo%20mi%20pedido%20web" target="_blank"><button style="width:100%;height:50px;background:#25D366;color:white;border:none;border-radius:10px;font-weight:bold;cursor:pointer;">🟢 ENVIAR WHATSAPP DE CONFIRMACIÓN</button></a>', unsafe_allow_html=True)
         if st.button("⬅️ Volver a la Tienda"): st.session_state.pedido_exitoso = False; st.rerun()
         st.stop()
@@ -207,7 +207,7 @@ if menu == "🛒 Tienda Online":
     
     with c_ia2:
         if not st.session_state.nombre_usuario:
-            st.session_state.nombre_usuario = st.text_input("¡Hola sobrino/a! No sabes que pedir?, déjame tu nombre y selecciona tu barrio para ayudarte")
+            st.session_state.nombre_usuario = st.text_input("¡Hola vecino/a! No sabes que pedir?, déjame tu nombre y selecciona tu barrio para ayudarte")
         else:
             # 1. LÓGICA DE MENSAJES DEL DÍA
             dias = {
@@ -215,8 +215,8 @@ if menu == "🛒 Tienda Online":
                 1: "Para este martes aburrido, ponle sabor a tu tarde... 🍬",
                 2: "Para este día de miércoles, ¡date un gusto que te lo mereces! 🍰",
                 3: "Para este jueves optimista, ya casi llegamos a la meta... 🚀",
-                4: "¡Hoy es viernes y el cuerpo lo sabe! 💃🕺 ¿Qué se te antoja, sobrino?",
-                5: "¡Fin de semana, sobrino! A disfrutar como se debe... 🍦",
+                4: "¡Hoy es viernes y el cuerpo lo sabe! 💃🕺 ¿Qué se te antoja, vecino/a?",
+                5: "¡Fin de semana, vecino! A disfrutar como se debe... 🍦",
                 6: "Que nunca se acabe el domingo... relájate con algo rico. 🥤"
             }
             
@@ -254,7 +254,7 @@ if menu == "🛒 Tienda Online":
             
             # 3. INTERACCIÓN DE LA IA Y MUESTRA DE IMAGEN
             if p_ia:
-                with st.spinner("Sobrino, voy a revisar la vitrina..."):
+                with st.spinner("Vecino, voy a revisar la vitrina..."):
                     respuesta = consultar_tia_gemini(p_ia, st.session_state.nombre_usuario, ps)
                     
                     # Buscamos si la IA mencionó algún producto para mostrar su foto
@@ -430,7 +430,7 @@ elif menu == "⚙️ Gestión de Inventario":
                     st.success(f"✅ {n} añadido correctamente.")
                     st.rerun()
                 else:
-                    st.error("Sobrino, ponle un nombre al producto pe'.")
+                    st.error("Vecino, ponle un nombre al producto pe'.")
 
     with t3:
         st.subheader("🧹 Limpieza de Base de Datos")
@@ -479,7 +479,7 @@ elif menu == "📊 Análisis y Reportes":
 # VISTA: RESEÑAS
 # ==============================================================================
 elif menu == "✍️ Dejar Reseña":
-    st.title("💬 ¿Qué dicen nuestros sobrinos?")
+    st.title("💬 ¿Qué dicen nuestros vecinos?")
     with st.form("res"):
         n = st.text_input("Tu nombre"); m = st.text_area("¿Qué te pareció el antojo?")
         if st.form_submit_button("Publicar"):
