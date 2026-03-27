@@ -178,7 +178,7 @@ with st.sidebar:
     st.markdown("---")
     pwd = st.text_input("🔑 Acceso Admin", type="password")
     opciones = ["🛒 Tienda Online", "✍️ Dejar Reseña"]
-    if pwd == "jorpao2026": opciones.extend(["⚙️ Gestión de Inventario", "📊 Análisis y Reportes"])
+    if pwd == "jyp2026.": opciones.extend(["⚙️ Gestión de Inventario", "📊 Análisis y Reportes"])
     menu = st.radio("Navegación", opciones)
 
 # ==============================================================================
