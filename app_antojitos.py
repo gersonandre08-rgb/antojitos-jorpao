@@ -9,10 +9,12 @@ import io
 import random
 
 # --- 1. CONFIGURACIÓN DE IA Y API ---
-# Configura tu clave aquí
-API_KEY = st.secrets["GOOGLE_API_KEY"]
-client = genai.Client(api_key=API_KEY)
-ID_MODELO = 'gemini-2.5-flash'
+try:
+    API_KEY = st.secrets["GOOGLE_API_KEY"]
+    client = genai.Client(api_key=API_KEY)
+    ID_MODELO = 'gemini-2.5-flash' 
+except Exception as e:
+    st.error(f"Error al cargar la API KEY: {e}")
 
 # --- 2. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="Antojitos JorPao", page_icon="🥤", layout="wide")
@@ -144,10 +146,10 @@ def consultar_tia_gemini(user_query, nombre, productos):
     
     prompt = f"""
     Eres la 'Vecina JorPao', dueña de un negocio de antojitos en el Callao. 
-    Eres criolla, divertida y hablas con mucha chispa (jerga peruana amigable pero con respeto).
+    Eres amable, divertida y hablas con mucha propiedad (muy pocas jergas peruanas amigables pero con respeto).
     Tu cliente se llama {nombre}, trátalo como {parentesco}.
     Empieza con este saludo: '{saludo}'.
-    Usa frases como: 'Te doy tu ayudín', 'Yo te aviento la boya', 'Te hago la gauchada', 'Te hago la taba'.
+    Usa frases como: 'Te doy tu ayudín', 'Con este combo no hay pierde', 'Te armo el combo ganador', 'Te doy la combinación precisa'.
     Solo recomienda estos productos disponibles: {prods_str}.
     Responde de forma carismática y breve (máximo 2 líneas) a esto: {user_query}
     """
@@ -158,7 +160,8 @@ def consultar_tia_gemini(user_query, nombre, productos):
         )
         return response.text
     except Exception as e:
-        return f"¡Uy {parentesco}, se me bajó la presión del sistema! Pero pídete algo rico."
+        print(f"DEBUG IA: {e}") 
+        return f"¡Uy {parentesco}, no tengo el stock a la mano! Revisa más abajo por favor (Error: {str(e)[:50]})"
 
 def to_excel(df):
     output = io.BytesIO()
