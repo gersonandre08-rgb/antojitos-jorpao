@@ -10,7 +10,7 @@ import random
 
 # --- 1. CONFIGURACIÓN DE IA Y API ---
 # Configura tu clave aquí
-API_KEY = st.secrets["AIzaSyDFwIADCQK6kDey3KhRcPGONXcpqqxtfSg"]
+API_KEY = st.secrets["GOOGLE_API_KEY"]
 client = genai.Client(api_key=API_KEY)
 ID_MODELO = 'gemini-2.5-flash'
 
