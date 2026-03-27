@@ -12,7 +12,7 @@ import random
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     client = genai.Client(api_key=API_KEY)
-    ID_MODELO = 'gemini-2.0-flash' 
+    ID_MODELO = 'gemini-2.5-flash' 
 except Exception as e:
     st.error(f"Error al cargar la API KEY: {e}")
 
@@ -50,7 +50,7 @@ st.markdown("""
             margin-top: -30px !important;
             padding: 5px !important;
             /* Evita que se corte la palabra en dos */
-            word-wrap: normal !important;
+            word-break: keep-all !important;
             word-break: normal !important;
             overflow-wrap: break-word !important;
         }
