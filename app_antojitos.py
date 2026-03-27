@@ -17,7 +17,7 @@ ID_MODELO = 'gemini-2.5-flash'
 # --- 2. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="Antojitos JorPao", page_icon="🥤", layout="wide")
 
-# Estilos CSS avanzados
+# Estilos CSS avanzados - VERSIÓN CORREGIDA PARA CELULAR
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;700&display=swap');
@@ -26,25 +26,37 @@ st.markdown("""
         background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%);
     }
     
-    /* --- ESTILO DEL TÍTULO PRINCIPAL --- */
+    /* --- ESTILO DEL TÍTULO PRINCIPAL (PARA PC) --- */
     .main-title {
         font-family: 'Bungee', cursive;
         color: #FFFFFF;
         text-shadow: 4px 4px 0px #FF4500, 8px 8px 15px rgba(0,0,0,0.3);
-        font-size: 65px;
+        font-size: 70px; /* Un poco más grande para PC */
         text-align: center;
         padding: 10px;
-        margin-top: -30px;
+        margin-top: -40px; /* Sube más el título */
+        margin-bottom: 0px;
+        line-height: 1.1; /* Ajusta el interlineado */
+        white-space: normal; /* Permite saltos de línea normales si es necesario */
     }
     
-    /* ¡NUEVO! Ajuste para que el nombre no se corte en celulares */
+    /* --- ¡SOLUCIÓN PARA CELULAR! (RESPONSIVO) --- */
     @media (max-width: 600px) {
         .main-title {
-            font-size: 40px !important; /* Letra más chica en móvil */
+            font-size: 38px !important; /* Letra mucho más chica en móvil para que entre */
             text-shadow: 2px 2px 0px #FF4500 !important;
+            margin-top: -30px !important;
+            padding: 5px !important;
+            /* Evita que se corte la palabra en dos */
+            word-wrap: normal !important;
+            word-break: normal !important;
+            overflow-wrap: break-word !important;
         }
         .subtitle {
-            font-size: 14px !important;
+            font-size: 13px !important;
+            margin-top: -10px !important;
+            margin-bottom: 20px !important;
+            padding: 0 10px;
         }
     }
     
@@ -427,7 +439,7 @@ elif menu == "⚙️ Gestión de Inventario":
             conn = get_db()
             c = conn.cursor()
             # Borra pedidos de prueba (ajustado a tus nombres según la captura)
-            c.execute("DELETE FROM pedidos WHERE LOWER(cliente) IN ('prueba', 'gerson', 'gerson siverio') OR cliente LIKE '%prueba%'")
+            c.execute("DELETE FROM pedidos WHERE LOWER(cliente) IN ('prueba', 'gerson', 'gerson siverio', 'Ana') OR cliente LIKE '%prueba%'")
             conn.commit()
             conn.close()
             st.success("¡Base de datos limpia de pruebas! Ahora sí, a vender de verdad.")
