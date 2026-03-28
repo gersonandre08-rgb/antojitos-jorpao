@@ -6,6 +6,12 @@ import os
 from datetime import datetime
 import io
 import random
+import pytz
+
+# --- CONFIGURACIÓN DE ZONA HORARIA (PERÚ) ---
+def get_peru_time():
+    lima_tz = pytz.timezone('America/Lima')
+    return datetime.now(lima_tz)
 
 # --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="Antojitos JorPao", page_icon="🥤", layout="wide")
@@ -135,7 +141,7 @@ init_db()
 
 # --- 3. LÓGICA DINÁMICA (PLAN B SIN IA) ---
 def obtener_sugerencia_clima():
-    hora = datetime.now().hour
+    hora = get_peru_time().hour
     if 10 <= hora <= 17:
         return "🔥 ¡Está haciendo un calor fuerte!", "Bebidas", "Nada como una bebida heladita para la sed. ¡Pídela al polo!"
     elif 18 <= hora <= 23:
@@ -163,7 +169,6 @@ if 'temp_combo_items' not in st.session_state: st.session_state.temp_combo_items
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    # Ajusté a use_container_width según recomendaciones de Streamlit
     if os.path.exists("WhatsApp Image 2026-03-27 at 01.27.46.jpeg"): 
         st.image("WhatsApp Image 2026-03-27 at 01.27.46.jpeg", use_container_width=True)
     st.markdown("---")
@@ -279,7 +284,7 @@ if menu == "🛒 Tienda Online":
 
             if st.button("🚀 FINALIZAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                 if u_nom and u_cel and u_dir:
-                    p_path = f"capturas_yape/p_{u_cel}_{datetime.now().second}.png" if cap_pago else None
+                    p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().second}.png" if cap_pago else None
                     if cap_pago:
                         with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                     
@@ -287,8 +292,8 @@ if menu == "🛒 Tienda Online":
                     c.execute("""INSERT INTO pedidos (fecha, cliente, celular, direccion, zona, productos_json, 
                                  total, ganancia, metodo_pago, monto_pagado, captura_pago, estado) 
                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                              (datetime.now().strftime("%Y-%m-%d %H:%M"), u_nom, u_cel, u_dir, zona, df_cart.to_json(), 
-                               total, ganancia_p, metodo, vuelvo_de, p_path, "Nuevo"))
+                              (get_peru_time().strftime("%Y-%m-%d %H:%M"), u_nom, u_cel, u_dir, zona, df_cart.to_json(orient='records'), 
+                               total, ganancia_p, metodo, vuelto_de, p_path, "Nuevo"))
                     
                     # Descontar stock (solo si no es combo)
                     for pid in df_cart['id']:
@@ -472,10 +477,23 @@ elif menu == "📊 Análisis y Reportes":
                 """, unsafe_allow_html=True)
                 
                 with st.expander("🔎 Ver detalle y gestionar"):
-                    # Detalle de productos
-                    items = json.loads(ped['productos_json'])
-                    for item in items:
-                        st.write(f"• {item.get('nombre', 'Producto')} - S/ {item.get('venta', 0)}")
+                    # Detalle de productos - CORRECCIÓN JSON
+                    try:
+                        items = json.loads(ped['productos_json'])
+                        # Si el JSON es una cadena de texto doblemente codificada
+                        if isinstance(items, str):
+                            items = json.loads(items)
+                            
+                        # Si items es un diccionario (formato antiguo), convertir a lista
+                        if isinstance(items, dict):
+                            # Si viene de pandas .to_json() por defecto, es un dict de columnas
+                            df_items = pd.DataFrame.from_dict(items)
+                            items = df_items.to_dict('records')
+
+                        for item in items:
+                            st.write(f"• {item.get('nombre', 'Producto')} - S/ {item.get('venta', 0)}")
+                    except Exception as e:
+                        st.error(f"Error al cargar productos: {e}")
                     
                     if ped['captura_pago']:
                         st.image(ped['captura_pago'], caption="Comprobante Enviado", width=250)
@@ -509,7 +527,7 @@ elif menu == "✍️ Dejar Reseña":
         if st.form_submit_button("Publicar Reseña"):
             conn = get_db(); c = conn.cursor()
             c.execute("INSERT INTO resenas (cliente, mensaje, fecha) VALUES (?,?,?)", 
-                      (n_res, m_res, datetime.now().strftime("%d/%m/%Y")))
+                      (n_res, m_res, get_peru_time().strftime("%d/%m/%Y")))
             conn.commit(); conn.close(); st.success("¡Gracias por tu comentario!"); st.rerun()
     
     conn = get_db(); df_res = pd.read_sql_query("SELECT * FROM resenas ORDER BY id DESC", conn); conn.close()
