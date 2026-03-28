@@ -93,23 +93,23 @@ def init_db():
     conn = get_db(); c = conn.cursor()
     # Productos
     c.execute('''CREATE TABLE IF NOT EXISTS productos 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, categoria TEXT, 
-                  costo REAL, venta REAL, stock INTEGER, imagen_path TEXT)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT, categoria TEXT, 
+                   costo REAL, venta REAL, stock INTEGER, imagen_path TEXT)''')
     # Categorías
     c.execute('''CREATE TABLE IF NOT EXISTS categorias 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT UNIQUE)''')
     # Combos
     c.execute('''CREATE TABLE IF NOT EXISTS combos 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_combo TEXT, 
-                  productos_ids TEXT, precio_combo REAL, activo INTEGER DEFAULT 1)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, nombre_combo TEXT, 
+                   productos_ids TEXT, precio_combo REAL, activo INTEGER DEFAULT 1)''')
     # Pedidos
     c.execute('''CREATE TABLE IF NOT EXISTS pedidos 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, cliente TEXT, celular TEXT, 
-                  direccion TEXT, zona TEXT, productos_json TEXT, total REAL, ganancia REAL,
-                  metodo_pago TEXT, monto_pagado REAL, captura_pago TEXT, estado TEXT)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, fecha TEXT, cliente TEXT, celular TEXT, 
+                   direccion TEXT, zona TEXT, productos_json TEXT, total REAL, ganancia REAL,
+                   metodo_pago TEXT, monto_pagado REAL, captura_pago TEXT, estado TEXT)''')
     # Reseñas
     c.execute('''CREATE TABLE IF NOT EXISTS resenas 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, mensaje TEXT, fecha TEXT)''')
+                  (id INTEGER PRIMARY KEY AUTOINCREMENT, cliente TEXT, mensaje TEXT, fecha TEXT)''')
     
     # Insertar categorías por defecto si la tabla está vacía
     c.execute("SELECT COUNT(*) FROM categorias")
@@ -135,8 +135,8 @@ def obtener_sugerencia_clima():
         return "🌤️ El clima está templado.", "Dulces", "Perfecto para un antojito dulce antes de terminar el día."
 
 def notificacion_simulada():
-    nombres = ["Gerson", "Paula", "Ricardo", "Vanessa", "Don Lucho", "Ana", "Beto"]
-    zonas = ["Playa Rímac", "Res. Aeropuerto", "Santa Rosa", "Gambetta"]
+    nombres = ["Gerson", "Jorge", "Ricardo", "Vanessa", "Don Lucho", "Ana", "Beto", "Anthony", "Cesar", "José", "Daniel"]
+    zonas = ["Playa Rímac", "Res. Aeropuerto", "Santa Rosa", "Gambetta", "Carmen de la Legua", "Smp"]
     if random.random() < 0.2:
         st.toast(f"🛍️ {random.choice(nombres)} de {random.choice(zonas)} acaba de comprar un antojito.", icon="🔥")
 
@@ -153,6 +153,7 @@ if 'pedido_exitoso' not in st.session_state: st.session_state.pedido_exitoso = F
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
+    # Ajusté a use_container_width según recomendaciones de Streamlit
     if os.path.exists("WhatsApp Image 2026-03-27 at 01.27.46.jpeg"): 
         st.image("WhatsApp Image 2026-03-27 at 01.27.46.jpeg", use_container_width=True)
     st.markdown("---")
@@ -281,7 +282,7 @@ if menu == "🛒 Tienda Online":
                     
                     # Descontar stock (solo si no es combo)
                     for pid in df_cart['id']:
-                        if isinstance(pid, int):
+                        if isinstance(pid, (int, float, int)):
                             c.execute("UPDATE productos SET stock = stock - 1 WHERE id = ?", (pid,))
                     
                     conn.commit(); conn.close()
@@ -292,16 +293,15 @@ if menu == "🛒 Tienda Online":
             st.warning("Tu carrito está vacío, vecino. ¡Anímate por algo rico!")
 
 # ==============================================================================
-# VISTA: GESTIÓN DE INVENTARIO (ADMIN)
+# VISTA: GESTIÓN DE INVENTARIO (ADMIN) - CATEGORÍAS CORREGIDAS
 # ==============================================================================
 elif menu == "⚙️ Gestión de Inventario":
     st.header("📦 Administración de Stock")
-    t1, t2, t3, t4 = st.tabs(["Stock Actual", "Agregar Producto", "Categorías", "🧹 Limpieza"])
+    t1, t2, t3, t4 = st.tabs(["Stock Actual", "Agregar Producto", "📁 Categorías", "🧹 Limpieza"])
 
     with t1:
         conn = get_db(); df_inv = pd.read_sql_query("SELECT * FROM productos", conn); conn.close()
         if not df_inv.empty:
-            # Reporte Excel Original
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_rep = df_inv.copy()
@@ -336,15 +336,29 @@ elif menu == "⚙️ Gestión de Inventario":
                 conn.commit(); conn.close(); st.success("Añadido."); st.rerun()
 
     with t3:
-        st.subheader("📁 Categorías de Vitrina")
-        n_cat = st.text_input("Nueva Categoría (Ej: Bebidas Calientes)")
-        if st.button("Añadir"):
-            conn = get_db(); c = conn.cursor()
-            c.execute("INSERT OR IGNORE INTO categorias (nombre) VALUES (?)", (n_cat,))
-            conn.commit(); conn.close(); st.rerun()
+        st.subheader("📁 Administrar Categorías")
         
+        # Formulario para añadir
+        col_add_n, col_add_b = st.columns([3, 1])
+        n_cat = col_add_n.text_input("Nueva Categoría (Ej: Bebidas Calientes)")
+        if col_add_b.button("Añadir", use_container_width=True):
+            if n_cat:
+                conn = get_db(); c = conn.cursor()
+                c.execute("INSERT OR IGNORE INTO categorias (nombre) VALUES (?)", (n_cat,))
+                conn.commit(); conn.close(); st.rerun()
+
+        st.markdown("---")
+        # Listado con opción de borrado
         conn = get_db(); df_cats_admin = pd.read_sql_query("SELECT * FROM categorias", conn); conn.close()
-        st.write(df_cats_admin)
+        for _, row in df_cats_admin.iterrows():
+            c1, c2 = st.columns([4, 1])
+            c1.write(f"📁 **{row['nombre']}**")
+            if c2.button("Eliminar", key=f"del_cat_{row['id']}"):
+                conn = get_db(); c = conn.cursor()
+                c.execute("DELETE FROM categorias WHERE id = ?", (row['id'],))
+                conn.commit(); conn.close()
+                st.success(f"Categoría {row['nombre']} eliminada")
+                st.rerun()
 
     with t4:
         st.subheader("🧹 Mantenimiento")
@@ -354,20 +368,38 @@ elif menu == "⚙️ Gestión de Inventario":
             conn.commit(); conn.close(); st.success("Base de datos limpia."); st.rerun()
 
 # ==============================================================================
-# VISTA: GESTIÓN DE COMBOS (ADMIN)
+# VISTA: GESTIÓN DE COMBOS (ADMIN) - LISTADO Y BORRADO AÑADIDO
 # ==============================================================================
 elif menu == "🎁 Gestionar Combos":
     st.header("🎁 Creador de Combos Ganadores")
-    with st.form("combo_form"):
-        nom_combo = st.text_input("Nombre del Combo (Ej: Combo Mundialista)")
-        conn = get_db(); df_ps = pd.read_sql_query("SELECT nombre FROM productos", conn); conn.close()
-        lista_p = st.multiselect("Productos que incluye", df_ps['nombre'].tolist())
-        precio_combo = st.number_input("Precio Final del Combo")
-        if st.form_submit_button("Lanzar Combo"):
-            conn = get_db(); c = conn.cursor()
-            c.execute("INSERT INTO combos (nombre_combo, productos_ids, precio_combo) VALUES (?,?,?)",
-                      (nom_combo, ", ".join(lista_p), precio_combo))
-            conn.commit(); conn.close(); st.success("¡Combo activo en la tienda!"); st.rerun()
+    
+    with st.expander("➕ Crear Nuevo Combo", expanded=True):
+        with st.form("combo_form"):
+            nom_combo = st.text_input("Nombre del Combo (Ej: Combo Mundialista)")
+            conn = get_db(); df_ps = pd.read_sql_query("SELECT nombre FROM productos", conn); conn.close()
+            lista_p = st.multiselect("Productos que incluye", df_ps['nombre'].tolist())
+            precio_combo = st.number_input("Precio Final del Combo")
+            if st.form_submit_button("Lanzar Combo"):
+                conn = get_db(); c = conn.cursor()
+                c.execute("INSERT INTO combos (nombre_combo, productos_ids, precio_combo) VALUES (?,?,?)",
+                          (nom_combo, ", ".join(lista_p), precio_combo))
+                conn.commit(); conn.close(); st.success("¡Combo activo en la tienda!"); st.rerun()
+
+    st.markdown("---")
+    st.subheader("📋 Combos en Vitrina")
+    conn = get_db(); df_list_combos = pd.read_sql_query("SELECT * FROM combos", conn); conn.close()
+    
+    for _, cb in df_list_combos.iterrows():
+        with st.container():
+            col_a, col_b, col_c = st.columns([3, 1, 1])
+            col_a.markdown(f"**{cb['nombre_combo']}** \n<small>{cb['productos_ids']}</small>", unsafe_allow_html=True)
+            col_b.write(f"S/ {cb['precio_combo']:.2f}")
+            if col_c.button("Borrar", key=f"del_cb_{cb['id']}"):
+                conn = get_db(); c = conn.cursor()
+                c.execute("DELETE FROM combos WHERE id = ?", (cb['id'],))
+                conn.commit(); conn.close()
+                st.success("Combo eliminado")
+                st.rerun()
 
 # ==============================================================================
 # VISTA: REPORTES (ADMIN)
