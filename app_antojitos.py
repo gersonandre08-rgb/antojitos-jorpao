@@ -497,6 +497,17 @@ elif menu == "📊 Análisis y Reportes":
                     
                     if ped['captura_pago']:
                         st.image(ped['captura_pago'], caption="Comprobante Enviado", width=250)
+                        
+                        # --- BOTÓN DE DESCARGA AÑADIDO AQUÍ ---
+                        if os.path.exists(ped['captura_pago']):
+                            with open(ped['captura_pago'], "rb") as f:
+                                st.download_button(
+                                    label="📥 Descargar Comprobante",
+                                    data=f,
+                                    file_name=f"pago_pedido_{ped['id']}.png",
+                                    mime="image/png",
+                                    key=f"dl_{ped['id']}"
+                                )
                     
                     # Botones de estado
                     if ped['estado'] == 'Nuevo':
