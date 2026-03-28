@@ -60,6 +60,15 @@ st.markdown("""
         color: #333;
     }
     
+    .order-card { 
+        background: #FFF3E0; 
+        padding: 15px; 
+        border-radius: 15px; 
+        border-left: 8px solid #FF4500; 
+        margin-bottom: 15px; 
+        color: #333;
+    }
+
     .stButton>button { 
         border-radius: 20px; 
         font-weight: bold; 
@@ -150,6 +159,7 @@ def to_excel(df):
 if 'carrito' not in st.session_state: st.session_state.carrito = []
 if 'nombre_usuario' not in st.session_state: st.session_state.nombre_usuario = ""
 if 'pedido_exitoso' not in st.session_state: st.session_state.pedido_exitoso = False
+if 'temp_combo_items' not in st.session_state: st.session_state.temp_combo_items = []
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -265,7 +275,7 @@ if menu == "🛒 Tienda Online":
                 st.info("📱 Yape/Plin: 963 142 733 (Paula Ottiniano)")
                 cap_pago = st.file_uploader("Sube tu comprobante de pago")
             else:
-                vuelto_de = st.number_input("¿Con cuánto vas a pagar?", min_value=total)
+                vuelvo_de = st.number_input("¿Con cuánto vas a pagar?", min_value=total)
 
             if st.button("🚀 FINALIZAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                 if u_nom and u_cel and u_dir:
@@ -278,7 +288,7 @@ if menu == "🛒 Tienda Online":
                                  total, ganancia, metodo_pago, monto_pagado, captura_pago, estado) 
                                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                               (datetime.now().strftime("%Y-%m-%d %H:%M"), u_nom, u_cel, u_dir, zona, df_cart.to_json(), 
-                               total, ganancia_p, metodo, vuelto_de, p_path, "Nuevo"))
+                               total, ganancia_p, metodo, vuelvo_de, p_path, "Nuevo"))
                     
                     # Descontar stock (solo si no es combo)
                     for pid in df_cart['id']:
@@ -368,22 +378,46 @@ elif menu == "⚙️ Gestión de Inventario":
             conn.commit(); conn.close(); st.success("Base de datos limpia."); st.rerun()
 
 # ==============================================================================
-# VISTA: GESTIÓN DE COMBOS (ADMIN) - LISTADO Y BORRADO AÑADIDO
+# VISTA: GESTIÓN DE COMBOS (ADMIN) - MEJORADO CON CANTIDADES
 # ==============================================================================
 elif menu == "🎁 Gestionar Combos":
     st.header("🎁 Creador de Combos Ganadores")
     
-    with st.expander("➕ Crear Nuevo Combo", expanded=True):
-        with st.form("combo_form"):
+    with st.container(border=True):
+        col1, col2 = st.columns([2, 1])
+        with col1:
             nom_combo = st.text_input("Nombre del Combo (Ej: Combo Mundialista)")
-            conn = get_db(); df_ps = pd.read_sql_query("SELECT nombre FROM productos", conn); conn.close()
-            lista_p = st.multiselect("Productos que incluye", df_ps['nombre'].tolist())
-            precio_combo = st.number_input("Precio Final del Combo")
-            if st.form_submit_button("Lanzar Combo"):
+        with col2:
+            precio_combo = st.number_input("Precio Final del Combo S/", min_value=0.0)
+
+        st.markdown("### 📝 Selecciona la cantidad de cada producto:")
+        c_prod, c_cant, c_add = st.columns([3, 1, 1])
+        
+        conn = get_db(); df_ps = pd.read_sql_query("SELECT nombre FROM productos", conn); conn.close()
+        prod_sel = c_prod.selectbox("Producto", df_ps['nombre'].tolist() if not df_ps.empty else ["Sin productos"])
+        cant_sel = c_cant.number_input("Cant.", min_value=1, value=1)
+        
+        if c_add.button("➕ Añadir a Receta"):
+            st.session_state.temp_combo_items.append(f"{cant_sel}x {prod_sel}")
+
+        if st.session_state.temp_combo_items:
+            st.write("**Lista del combo:** " + " + ".join(st.session_state.temp_combo_items))
+            if st.button("🗑️ Limpiar Lista"): 
+                st.session_state.temp_combo_items = []
+                st.rerun()
+
+        if st.button("🚀 LANZAR COMBO", type="primary", use_container_width=True):
+            if nom_combo and st.session_state.temp_combo_items:
+                receta_final = ", ".join(st.session_state.temp_combo_items)
                 conn = get_db(); c = conn.cursor()
                 c.execute("INSERT INTO combos (nombre_combo, productos_ids, precio_combo) VALUES (?,?,?)",
-                          (nom_combo, ", ".join(lista_p), precio_combo))
-                conn.commit(); conn.close(); st.success("¡Combo activo en la tienda!"); st.rerun()
+                          (nom_combo, receta_final, precio_combo))
+                conn.commit(); conn.close()
+                st.session_state.temp_combo_items = []
+                st.success("¡Combo activo en la tienda!")
+                st.rerun()
+            else:
+                st.error("Debes poner un nombre y añadir productos.")
 
     st.markdown("---")
     st.subheader("📋 Combos en Vitrina")
@@ -402,21 +436,65 @@ elif menu == "🎁 Gestionar Combos":
                 st.rerun()
 
 # ==============================================================================
-# VISTA: REPORTES (ADMIN)
+# VISTA: REPORTES Y BANDEJA DE PEDIDOS (ADMIN)
 # ==============================================================================
 elif menu == "📊 Análisis y Reportes":
-    st.header("📊 Métricas del Negocio")
-    conn = get_db(); df_v = pd.read_sql_query("SELECT * FROM pedidos ORDER BY id DESC", conn); conn.close()
+    st.header("📊 Métricas y Gestión de Pedidos")
+    
+    conn = get_db()
+    # Mostramos los nuevos arriba
+    df_v = pd.read_sql_query("SELECT * FROM pedidos ORDER BY CASE WHEN estado = 'Nuevo' THEN 0 ELSE 1 END, id DESC", conn)
+    conn.close()
     
     if not df_v.empty:
+        # --- MÉTRICAS ---
         c1, c2, c3 = st.columns(3)
         c1.metric("Ventas Totales", f"S/ {df_v['total'].sum():.2f}")
         c2.metric("Ganancia Estimada", f"S/ {df_v['ganancia'].sum():.2f}")
         c3.metric("Nro Pedidos", len(df_v))
         
-        st.subheader("📋 Historial de Ventas")
-        st.dataframe(df_v[['id', 'fecha', 'cliente', 'total', 'metodo_pago']])
-        
+        # --- BANDEJA DE PEDIDOS ENTRANTE ---
+        st.subheader("🔔 Bandeja de Pedidos")
+        for _, ped in df_v.iterrows():
+            with st.container():
+                color_borde = "#FF4500" if ped['estado'] == 'Nuevo' else "#666"
+                st.markdown(f"""
+                <div class="order-card" style="border-left-color: {color_borde};">
+                    <div style="display: flex; justify-content: space-between;">
+                        <b>📦 Pedido #{ped['id']} - {ped['estado']}</b>
+                        <i>{ped['fecha']}</i>
+                    </div>
+                    <hr style="margin: 10px 0; border: 0.5px solid #ddd;">
+                    <b>👤 Cliente:</b> {ped['cliente']} ({ped['celular']})<br>
+                    <b>📍 Ubicación:</b> {ped['direccion']} - {ped['zona']}<br>
+                    <b>💰 Pago:</b> S/ {ped['total']:.2f} ({ped['metodo_pago']})
+                </div>
+                """, unsafe_allow_html=True)
+                
+                with st.expander("🔎 Ver detalle y gestionar"):
+                    # Detalle de productos
+                    items = json.loads(ped['productos_json'])
+                    for item in items:
+                        st.write(f"• {item.get('nombre', 'Producto')} - S/ {item.get('venta', 0)}")
+                    
+                    if ped['captura_pago']:
+                        st.image(ped['captura_pago'], caption="Comprobante Enviado", width=250)
+                    
+                    # Botones de estado
+                    if ped['estado'] == 'Nuevo':
+                        col_acc1, col_acc2, _ = st.columns([1, 1, 2])
+                        if col_acc1.button(f"✅ Marcar Entregado", key=f"ent_{ped['id']}"):
+                            conn = get_db(); c = conn.cursor()
+                            c.execute("UPDATE pedidos SET estado = 'Entregado' WHERE id = ?", (ped['id'],))
+                            conn.commit(); conn.close(); st.rerun()
+                        if col_acc2.button(f"❌ Cancelar", key=f"can_{ped['id']}"):
+                            conn = get_db(); c = conn.cursor()
+                            c.execute("UPDATE pedidos SET estado = 'Cancelado' WHERE id = ?", (ped['id'],))
+                            conn.commit(); conn.close(); st.rerun()
+
+        st.markdown("---")
+        st.subheader("📋 Historial Completo")
+        st.dataframe(df_v[['id', 'fecha', 'cliente', 'total', 'metodo_pago', 'estado']])
         st.download_button("📥 Descargar Reporte Ventas", data=to_excel(df_v), file_name="ventas_jorpao.xlsx")
     else:
         st.info("Aún no hay ventas registradas.")
