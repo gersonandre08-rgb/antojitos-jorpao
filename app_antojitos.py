@@ -390,7 +390,6 @@ with st.sidebar:
                             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_carrito:
-        # Ancla para el botón flotante (Mantenida arriba del contenido)
         st.markdown('<div id="mi-pedido" style="padding-top: 1px;"></div>', unsafe_allow_html=True)
         if st.session_state.carrito:
             st.markdown("### 🛒 Tu Lista de Antojitos")
@@ -439,24 +438,20 @@ with st.sidebar:
                 else:
                     vuelto_de = st.number_input("¿Con cuánto pagarás? (Para llevarte vuelto)", min_value=total)
 
-                # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
                 st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total es **S/ {total:.2f}**.")
 
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
                         st.error("Por favor, completa tu celular (9 dígitos) y dirección correctamente.")
                     else:
-                        # Guardar copia del pedido para seguimiento post-compra
                         st.session_state.ultimo_pedido_json = df_cart.to_json(orient='records')
                         
-                        # Guardar captura si existe
                         p_path = ""
                         if cap_pago:
                             if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets (o archivo local)
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
