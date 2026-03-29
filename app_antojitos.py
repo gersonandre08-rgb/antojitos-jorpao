@@ -503,52 +503,59 @@ if menu == "🛒 Tienda Online":
                 # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
                 st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery). ***No olvides enviar el comprobante de pago si es yape***")
 
-                # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
-                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery). ***No olvides enviar el comprobante de pago si es yape***")
-
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
                         st.error("Por favor, completa tu celular (9 dígitos) y dirección correctamente.")
                     else:
-                        # Guardar captura si existe
+                        # 1. Guardar captura si existe (Mantenemos tu lógica original)
                         p_path = ""
                         if cap_pago:
-                            if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
+                            if not os.path.exists("capturas_yape"): 
+                                os.makedirs("capturas_yape")
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
-                            with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
-        
-                    # Guardar Pedido
-                    df_pedidos_all = load_data("pedidos")
-                    nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
-        
-                    # --- CÁLCULO DE GANANCIA CORREGIDO ---
-                    try:
-                        # Si el producto tiene 'ganancia_combo' definida (es un combo), usamos esa. 
-                        # Si no, usamos la resta tradicional de venta - costo.
-                        if 'ganancia_combo' in df_cart.columns and df_cart['ganancia_combo'].notna().any():
-                            ganancia_final = df_cart['ganancia_combo'].sum()
-                        else:
-                            ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
-                            ganancia_final = ganancia_prod # No sumamos delivery para no inflar la ganancia real
-                    except:
-                        ganancia_final = 0.0
+                            with open(p_path, "wb") as f: 
+                                f.write(cap_pago.getbuffer())
             
-                    nuevo_pedido = pd.DataFrame([{
-                        "id": nuevo_id, 
-                        "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
-                        "cliente": st.session_state.nombre_usuario, 
-                        "celular": u_cel, 
-                        "direccion": u_dir, 
-                        "zona": zona,
-                        "productos_json": df_cart.to_json(orient='records'), 
-                        "total": total,
-                        "ganancia": ganancia_final, 
-                        "metodo_pago": metodo, 
-                        "monto_pagado": vuelto_de,
-                        "captura_pago": p_path, 
-                        "estado": "Nuevo",
-                        "maps_link": maps_link # Se agregó la coma faltante arriba
-                    }])
+                        # 2. Preparar datos para el registro
+                        df_pedidos_all = load_data("pedidos")
+                        nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
+
+                        # --- INICIO DE CÁLCULO DE GANANCIA DINÁMICO ---
+                        ganancia_acumulada = 0.0
+                        delivery_actual = float(v_delivery) # Usamos tu variable ajustable de envío
+
+                        for item in st.session_state.carrito:
+                            # Si el ítem tiene 'productos_ids', es un combo del Excel
+                            if "productos_ids" in item or 'ganancia_combo' in item:
+                                # Usamos el valor ajustable del Excel (ej. 0.70)
+                                ganancia_item = float(item.get('ganancia_combo', 0))
+                            else:
+                                # Producto simple: Venta - Costo
+                                v = float(item.get('precio', 0))
+                                c = float(item.get('costo', 0))
+                                ganancia_item = v - c
+                
+                            ganancia_acumulada += (ganancia_item * item['cantidad'])
+
+                        # Sumamos el delivery ajustable a la ganancia total del pedido
+                        ganancia_final_con_envio = ganancia_acumulada + delivery_actual
+            
+                        nuevo_pedido = pd.DataFrame([{
+                            "id": nuevo_id, 
+                            "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
+                            "cliente": st.session_state.nombre_usuario, 
+                            "celular": u_cel, 
+                            "direccion": u_dir, 
+                            "zona": zona,
+                            "productos_json": df_cart.to_json(orient='records'), 
+                            "total": total,
+                            "ganancia": ganancia_final, 
+                            "metodo_pago": metodo, 
+                            "monto_pagado": vuelto_de,
+                            "captura_pago": p_path, 
+                            "estado": "Nuevo",
+                            "maps_link": maps_link # Se agregó la coma faltante arriba
+                        }])
         
                     update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
         
