@@ -191,42 +191,43 @@ st.markdown("""
     <div class="subtitle">¡ENDULZAMOS TU DIA, VECINO/A!</div>
 """, unsafe_allow_html=True)
 
-# --- 2. GESTIÓN DE PERSISTENCIA (SINCRONIZACIÓN TOTAL) ---
-# Usamos la conexión global que ya tenías configurada
+# --- 2. GESTIÓN DE PERSISTENCIA (CONFIGURACIÓN ORIGINAL ESTABLE) ---
+from streamlit_gsheets import GSheetsConnection
+
+# Conexión global única
 conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
     try:
-        # Lectura directa sin ttl para forzar datos reales
-        # Si el error 400 persiste aquí, es un tema de permisos o URL en Secrets
+        # Lectura directa. ttl=0 asegura que veas los cambios de stock al instante.
         df = conn_gs.read(worksheet=worksheet_name, ttl=0)
         
         if df is None or df.empty:
             return pd.DataFrame()
         
-        # Sincronización mínima de tipos de datos para el editor
+        # Solo aplicamos formatos básicos para que el editor de Streamlit no falle
         if worksheet_name == "productos":
-            # Solo convertimos si las columnas existen, sin crear nada nuevo aquí
+            # Aseguramos que las columnas numéricas no tengan textos raros
             for col in ['stock', 'venta', 'costo']:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            if 'stock' in df.columns:
-                df['stock'] = df['stock'].astype(int)
-
+            df['stock'] = df['stock'].astype(int)
+            
         return df
     except Exception as e:
-        # Este mensaje te dirá si el problema es el nombre de la pestaña
-        st.error(f"Error de comunicación (400) en '{worksheet_name}': {e}")
+        # Si sale el 400 aquí, el problema es el nombre de la pestaña en el Excel
+        st.error(f"Error de conexión con la pestaña '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
     try:
-        # Guardado directo sin limpiar filas para no descuadrar el rango de Google
+        # Guardado directo. Importante: no filtramos filas para mantener el rango de Google.
         conn_gs.update(worksheet=worksheet, data=df)
+        # Limpiamos la memoria de la app para forzar la recarga
         st.cache_data.clear()
-        st.success("✅ Cambios guardados en la nube.")
+        st.success(f"✅ ¡Pestaña '{worksheet}' actualizada!")
     except Exception as e:
-        st.error(f"❌ Error al guardar en {worksheet}: {e}")
+        st.error(f"❌ Error al guardar: {e}")
 
 # --- 3. FUNCIONES DE LÓGICA DE NEGOCIO ---
 def obtener_sugerencia_clima():
@@ -588,14 +589,20 @@ elif menu == "⚙️ Gestión de Inventario" and is_admin:
     
     with t_stock:
         df_inv = load_data("productos")
+        
         if not df_inv.empty:
             st.subheader("Editar Productos en Vivo")
-            df_edit = st.data_editor(df_inv, num_rows="dynamic")
+            # El editor ahora recibirá los datos limpios
+            df_edit = st.data_editor(df_inv, num_rows="dynamic", use_container_width=True)
+            
             if st.button("Guardar Cambios en Inventario"):
                 update_data(df_edit, "productos")
-                st.success("¡Base de datos de productos actualizada!")
+                st.rerun()
         else:
-            st.write("No hay productos registrados.")
+            # Si df_inv llega vacío, mostramos el aviso pero permitimos reintentar
+            st.warning("No se detectaron productos en la base de datos.")
+            if st.button("🔄 Forzar recarga de datos"):
+                st.rerun()
 
     with t_add:
         with st.form("nuevo_prod_form"):
