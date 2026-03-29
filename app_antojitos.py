@@ -538,13 +538,13 @@ if menu == "🛒 Tienda Online":
                             cantidad_item = int(item.get('cantidad', 1))
                             ganancia_acumulada += (ganancia_item * cantidad_item)
 
-                        # Sumamos el delivery ajustable a la ganancia total del pedido
+                        delivery_actual = float(costo_delivery) # costo_delivery viene de tu sidebar
                         ganancia_final_con_envio = ganancia_acumulada + delivery_actual
             
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
                             "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
-                            "cliente": u_nom, 
+                            "cliente": st.session_state.nombre_usuario, 
                             "celular": u_cel, 
                             "direccion": u_dir, 
                             "zona": zona,
