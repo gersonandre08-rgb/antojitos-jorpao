@@ -522,7 +522,7 @@ if menu == "🛒 Tienda Online":
 
                         # --- INICIO DE CÁLCULO DE GANANCIA DINÁMICO ---
                         ganancia_acumulada = 0.0
-                        delivery_actual = float(v_delivery) # Usamos tu variable ajustable de envío
+                        delivery_actual = float(costo_delivery) # Usamos tu variable ajustable de envío
 
                         for item in st.session_state.carrito:
                             # Si el ítem tiene 'productos_ids', es un combo del Excel
