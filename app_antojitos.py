@@ -257,29 +257,27 @@ with st.sidebar:
 # ==============================================================================
 # VISTA: TIENDA ONLINE (LÓGICA COMPLETA)
 # ==============================================================================
-    if menu == "🛒 Tienda Online":
-        notificacion_simulada()
+elif menu == "🛒 Tienda Online":
+    notificacion_simulada()
 
-        # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN CORREGIDA) ---
-        if st.session_state.carrito and not st.session_state.pedido_exitoso:
-            cant_items = len(st.session_state.carrito)
-            st.markdown(f"""
-                <style>
-                .floating-cart {{
-                    position: fixed; bottom: 85px; right: 20px; z-index: 999;
-                    background: #FF4500; color: white !important; padding: 15px 20px;
-                    border-radius: 50px; text-decoration: none !important; font-weight: bold;
-                    box-shadow: 2px 4px 10px rgba(0,0,0,0.3); border: 2px solid white;
-                    display: flex; align-items: center; transition: 0.3s;
-                    cursor: pointer; border: none; font-family: sans-serif;
-                }}
-                .floating-cart:hover {{ transform: scale(1.05); background: #e63e00; }}
-                </style>
-                
-                <button class="floating-cart" onclick="document.getElementById('mi-pedido').scrollIntoView({{behavior: 'smooth'}})">
-                    <span>🛒 VER MI RESUMEN ({cant_items})</span>
-                </button>
-            """, unsafe_allow_html=True)
+    # --- 1. BOTÓN FLOTANTE ---
+    if st.session_state.carrito and not st.session_state.pedido_exitoso:
+        cant_items = len(st.session_state.carrito)
+        st.markdown(f"""
+            <style>
+            .floating-cart {{
+                position: fixed; bottom: 85px; right: 20px; z-index: 999;
+                background: #FF4500; color: white !important; padding: 15px 20px;
+                border-radius: 50px; text-decoration: none !important; font-weight: bold;
+                box-shadow: 2px 4px 10px rgba(0,0,0,0.3); border: none;
+                display: flex; align-items: center; transition: 0.3s; cursor: pointer;
+            }}
+            .floating-cart:hover {{ transform: scale(1.05); background: #e63e00; }}
+            </style>
+            <button class="floating-cart" onclick="document.getElementById('mi-pedido').scrollIntoView({{behavior: 'smooth'}})">
+                <span>🛒 VER MI RESUMEN ({cant_items})</span>
+            </button>
+        """, unsafe_allow_html=True)
 
         # --- 2. PANTALLA DE ÉXITO Y SEGUIMIENTO POST-ENVÍO ---
         if st.session_state.pedido_exitoso:
