@@ -565,95 +565,125 @@ elif menu == "⚙️ Gestión de Inventario" and is_admin:
 # ==============================================================================
 elif menu == "📊 Análisis y Reportes" and is_admin:
     st.header("📊 Análisis de Ventas")
-    df_v = load_data("pedidos")
+    
+    # Intentar cargar datos
+    try:
+        df_v = load_data("pedidos")
+    except Exception as e:
+        st.error(f"Error al conectar con la base de datos: {e}")
+        st.stop()
     
     if not df_v.empty:
         # --- LIMPIEZA AUTOMÁTICA DE PRUEBAS ---
+        # Filtramos filas donde el nombre sea 'prueba' o 'pruebas'
         antes_limpieza = len(df_v)
-        df_v = df_v[~df_v['cliente'].str.lower().str.strip().isin(['prueba', 'pruebas'])]
+        df_v = df_v[~df_v['cliente'].astype(str).str.lower().str.strip().isin(['prueba', 'pruebas'])]
+        
+        # Si se eliminaron filas de prueba, actualizamos Google Sheets automáticamente
         if len(df_v) < antes_limpieza:
             update_data(df_v, "pedidos")
             st.rerun()
 
-        # Conversión de datos
-        df_v['total'] = df_v['total'].astype(float)
-        df_v['ganancia'] = df_v['ganancia'].astype(float)
+        # --- CONVERSIÓN Y LIMPIEZA DE DATOS ---
+        df_v['total'] = pd.to_numeric(df_v['total'], errors='coerce').fillna(0)
+        df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
-        # --- CÁLCULO DE GANANCIA CORRECTO ---
-        # Sumamos la ganancia de productos guardada + S/ 2.00 por cada fila (pedido)
+        # --- CÁLCULO DE MÉTRICAS ---
+        total_ventas = df_v['total'].sum()
+        
+        # Ganancia real: Suma de la columna ganancia + el margen de delivery (S/ 2.00 por pedido)
         ganancia_productos = df_v['ganancia'].sum()
         ganancia_delivery = len(df_v) * 2.0
         ganancia_total_real = ganancia_productos + ganancia_delivery
         
-        # Métricas
-        m1, m2, m3, m4 = st.columns(4)
-        total_ventas = df_v['total'].sum()
-        m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
-        
         porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
-        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}%")
-        
-        m3.metric("Pedidos", len(df_v))
+
+        # Mostrar Métricas en columnas
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
+        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
+        m3.metric("Pedidos Totales", len(df_v))
         m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
 
-        # --- NUEVO GRÁFICO CIRCULAR (PORCENTAJES) ---
-        st.subheader("🍕 Distribución de Ventas")
+        st.markdown("---")
+
+        # --- GRÁFICO DE PRODUCTOS MÁS VENDIDOS ---
+        st.subheader("🍕 Distribución de Ventas por Producto")
         
-        # Extraemos los nombres de productos de todos los JSON para el gráfico
+        # Lógica para extraer nombres del JSON de productos si existe
         lista_nombres = []
-        for p_json in df_v['productos_json']:
-            try:
-                items = json.loads(p_json)
-                for it in items:
-                    lista_nombres.append(it['nombre'])
-            except:
-                continue
+        if 'productos_json' in df_v.columns:
+            import json
+            for p_json in df_v['productos_json']:
+                try:
+                    if pd.notna(p_json) and p_json != "":
+                        items = json.loads(p_json)
+                        for it in items:
+                            lista_nombres.append(it['nombre'])
+                except:
+                    continue
         
         if lista_nombres:
             df_pie = pd.Series(lista_nombres).value_counts().reset_index()
             df_pie.columns = ['Producto', 'Cantidad']
             
-            # Usamos plotly para un gráfico redondo profesional
             import plotly.express as px
             fig = px.pie(df_pie, values='Cantidad', names='Producto', 
-                         hole=0.4, # Lo hace tipo "Donut" que es más moderno
+                         hole=0.4, 
                          color_discrete_sequence=px.colors.sequential.OrRd_r)
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("No hay suficientes datos para generar el gráfico circular.")
+            st.info("💡 Los datos detallados de productos (JSON) se mostrarán aquí conforme se registren nuevos pedidos.")
 
-        # Bandeja de Pedidos Activos
-        st.subheader("🔔 Bandeja de Pedidos Activos")
+        # --- BANDEJA DE PEDIDOS ACTIVOS (GESTIÓN RÁPIDA) ---
+        st.subheader("🔔 Pedidos Pendientes (Estado: Nuevo)")
         pendientes = df_v[df_v['estado'] == 'Nuevo'].sort_values('id', ascending=False)
         
         if pendientes.empty:
-            st.success("¡No hay pedidos pendientes!")
+            st.success("✅ ¡No hay pedidos pendientes de entrega!")
         else:
             for _, ped in pendientes.iterrows():
                 with st.container(border=True):
                     c_info, c_accion = st.columns([3, 1])
-                    c_info.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
-                    c_info.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
-                    c_info.write(f"💰 S/ {ped['total']} ({ped['metodo_pago']})")
                     
-                    if c_accion.button(f"Entregado ✅", key=f"btn_ent_{ped['id']}", use_container_width=True):
-                        df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
-                        update_data(df_v, "pedidos")
-                        st.rerun()
+                    with c_info:
+                        st.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
+                        st.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
+                        st.write(f"💰 **Total: S/ {ped['total']:.2f}** ({ped['metodo_pago']})")
                     
-                    if c_accion.button(f"Eliminar 🗑️", key=f"btn_del_{ped['id']}", use_container_width=True):
-                        df_v = df_v[df_v['id'] != ped['id']]
-                        update_data(df_v, "pedidos")
-                        st.rerun()
+                    with c_accion:
+                        # Marcar como Entregado
+                        if st.button(f"Entregado ✅", key=f"btn_ent_{ped['id']}", use_container_width=True):
+                            df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
+                            update_data(df_v, "pedidos")
+                            st.toast(f"Pedido #{ped['id']} marcado como entregado")
+                            st.rerun()
+                        
+                        # Eliminar cualquier pedido (incluye pruebas manuales)
+                        if st.button(f"Eliminar 🗑️", key=f"btn_del_{ped['id']}", use_container_width=True):
+                            df_v = df_v[df_v['id'] != ped['id']]
+                            update_data(df_v, "pedidos")
+                            st.toast(f"Pedido #{ped['id']} eliminado")
+                            st.rerun()
 
+        # --- EXPORTACIÓN ---
         st.markdown("---")
-        st.subheader("📥 Exportar Reporte")
-        st.download_button("Descargar Excel", data=to_excel(df_v), 
-                           file_name=f"ventas_jorpao_{get_peru_time().strftime('%Y%m%d')}.xlsx",
-                           use_container_width=True)
+        st.subheader("📥 Exportar Historial Completo")
+        try:
+            excel_data =充分to_excel(df_v) # Asegúrate de tener definida la función to_excel
+            st.download_button(
+                label="📥 Descargar Reporte en Excel",
+                data=excel_data,
+                file_name=f"reporte_ventas_jorpao_{get_peru_time().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        except NameError:
+            st.warning("La función de exportación a Excel requiere que 'to_excel' esté definida en tu código.")
+
     else:
-        st.info("Aún no hay datos de ventas.")
+        st.info("Aún no hay datos de ventas registrados en la hoja de 'pedidos'.")
 
 # ==============================================================================
 # VISTA: COMBOS (ADMIN)
