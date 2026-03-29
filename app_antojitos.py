@@ -192,48 +192,31 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GESTIÓN DE PERSISTENCIA (GOOGLE SHEETS) ---
-# Se mantiene la conexión global que ya te funcionaba
-conn_gs = st.connection("gsheets", type=GSheetsConnection)
-
+# Usamos un objeto de conexión simplificado
 def load_data(worksheet_name):
     try:
-        # Volvemos a la lectura directa que es más estable para tu cuenta
-        df = conn_gs.read(worksheet=worksheet_name, ttl=0)
+        # Forzamos la conexión limpia en cada llamado
+        conn = st.connection("gsheets", type=GSheetsConnection)
         
-        if df is None or df.empty:
+        # Leemos el archivo sin pre-procesar, para ver si el error 400 es por el rango
+        df = conn.read(worksheet=worksheet_name, ttl=0)
+        
+        if df is None:
             return pd.DataFrame()
-        
-        # Sincronización de columnas según tu Excel real
-        if worksheet_name == "productos":
-            # Aseguramos que el stock sea entero para evitar errores de visualización
-            if 'stock' in df.columns:
-                df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
-            if 'venta' in df.columns:
-                df['venta'] = pd.to_numeric(df['venta'], errors='coerce').fillna(0.0)
-
-        elif worksheet_name == "combos":
-            # Aquí es donde reside físicamente la ganancia
-            if 'ganancia_combo' in df.columns:
-                df['ganancia_combo'] = pd.to_numeric(df['ganancia_combo'], errors='coerce').fillna(0.0)
             
         return df
     except Exception as e:
-        # Si sale error 400, es por caché corrupta o nombre de pestaña mal escrito
-        st.error(f"Error de conexión con la pestaña {worksheet_name}: {e}")
+        st.error(f"Error técnico de Google (400): {e}")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
     try:
-        # Sincronizamos con el Sheets sin alterar la estructura de filas
-        conn_gs.update(worksheet=worksheet, data=df)
-        # Limpieza de caché para que Callao vea los cambios al instante
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        conn.update(worksheet=worksheet, data=df)
         st.cache_data.clear()
+        st.success("Guardado exitoso.")
     except Exception as e:
-        st.error(f"❌ Error al guardar en {worksheet}: {e}")
-
-# Directorios para persistencia de medios
-if not os.path.exists("img_productos"): os.makedirs("img_productos")
-if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
+        st.error(f"Error al guardar: {e}")
 
 # --- 3. FUNCIONES DE LÓGICA DE NEGOCIO ---
 def obtener_sugerencia_clima():
