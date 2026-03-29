@@ -184,8 +184,8 @@ if 'form_submitted' not in st.session_state: st.session_state.form_submitted = F
 # --- 5. SIDEBAR ---
 with st.sidebar:
     # Usando el nombre del archivo exacto que proporcionaste
-    if os.path.exists("WhatsApp Image 2026-03-27 at 01.27.46.jpeg"): 
-        st.image("WhatsApp Image 2026-03-27 at 01.27.46.jpeg", use_container_width=True)
+    if os.path.exists("logo.png"): 
+        st.image("logo.png", use_container_width=True)
     
     st.markdown("### 🏰 Menú Principal")
     pwd = st.text_input("🔑 Panel Administrativo", type="password", help="Solo para la vecina JorPao")
