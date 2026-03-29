@@ -260,14 +260,39 @@ with st.sidebar:
 if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
-    # Botón flotante del carrito
+    # --- NUEVO: BOTÓN FLOTANTE DE WHATSAPP ---
+    # Mensaje inicial basado en si hay algo en el carrito o no
     if st.session_state.carrito:
-        cant_items = len(st.session_state.carrito)
-        st.markdown(f"""
-            <a href="#mi-pedido" class="floating-cart">
-                <span>🛒 VER MI PEDIDO ({cant_items})</span>
-            </a>
-        """, unsafe_allow_html=True)
+        texto_wa = f"Hola JorPao! 👋 Soy {st.session_state.nombre_usuario}. Tengo productos en mi carrito y me gustaría una atención personalizada."
+    else:
+        texto_wa = "Hola JorPao! 👋 Me gustaría hacer una consulta sobre los antojitos de hoy."
+    
+    phone_number = "51963142733"
+    wa_url = f"https://wa.me/{phone_number}?text={texto_wa.replace(' ', '%20')}"
+
+    st.markdown(f"""
+        <style>
+        .floating-whatsapp {{
+            position: fixed; bottom: 20px; right: 20px; width: 60px; height: 60px;
+            background-color: #25d366; color: #fff !important; border-radius: 50px;
+            text-align: center; font-size: 30px; box-shadow: 2px 2px 3px #999;
+            z-index: 1000; display: flex; align-items: center; justify-content: center;
+            text-decoration: none !important; transition: all 0.3s ease;
+        }}
+        .floating-whatsapp:hover {{ transform: scale(1.1); background-color: #128c7e; }}
+        .wa-tooltip {{
+            position: fixed; bottom: 30px; right: 90px; background-color: #444;
+            color: white; padding: 5px 15px; border-radius: 20px; font-size: 14px;
+            z-index: 1000; font-family: sans-serif;
+        }}
+        </style>
+        <div class="wa-tooltip">¿Consultas? ¡Escríbenos!</div>
+        <a href="{wa_url}" class="floating-whatsapp" target="_blank">
+            <svg style="width:35px;height:35px" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M12.04 2C6.5 2 2 6.5 2 12.04C2 13.81 2.46 15.53 3.33 17.04L2 22L7.13 20.69C8.59 21.5 10.23 21.93 11.91 21.93H11.96C17.5 21.93 22 17.43 22 11.91C22 9.23 20.96 6.72 19.05 4.81C17.14 2.89 14.71 2 12.04 2M12.05 3.67C14.25 3.67 16.31 4.53 17.87 6.09C19.44 7.65 20.3 9.72 20.3 11.91C20.3 16.5 16.56 20.24 11.97 20.24H11.93C10.5 20.24 9.11 19.88 7.87 19.19L7.58 19.04L4.5 19.84L5.33 16.88L5.15 16.59C4.41 15.41 4.03 14.06 4.03 12.04C4.03 7.63 7.63 4.03 12.05 3.67M8.67 7.91C8.47 7.45 8.27 7.45 8.08 7.45C7.93 7.45 7.76 7.45 7.58 7.45C7.41 7.45 7.14 7.5 6.91 7.76C6.67 8.03 6 8.65 6 9.92C6 11.19 6.92 12.41 7.05 12.58C7.17 12.75 8.84 15.45 11.46 16.5C12.08 16.75 12.57 16.91 12.95 17.03C13.57 17.23 14.13 17.2 14.58 17.13C15.08 17.06 16.13 16.5 16.35 15.88C16.57 15.26 16.57 14.74 16.5 14.63C16.44 14.53 16.3 14.47 16.08 14.36C15.86 14.25 14.79 13.73 14.59 13.66C14.39 13.59 14.25 13.55 14.1 13.77C13.96 13.99 13.55 14.47 13.42 14.61C13.3 14.75 13.17 14.77 12.95 14.66C12.73 14.55 12.02 14.32 11.18 13.57C10.52 12.98 10.08 12.25 9.95 12.03C9.82 11.81 9.94 11.69 10.05 11.58C10.15 11.48 10.26 11.33 10.37 11.21C10.47 11.09 10.5 11 10.58 10.83C10.66 10.67 10.62 10.5 10.56 10.39C10.5 10.28 10 9.07 9.81 8.61C9.62 8.15 9.42 8.21 9.28 8.21C9.14 8.21 8.97 8.21 8.8 8.21C8.63 8.21 8.36 8.27 8.12 8.54C7.88 8.81 7.21 9.5 7.21 10.84C7.21 12.18 8.19 13.47 8.33 13.67C8.47 13.87 10.21 16.56 12.91 17.63C13.55 17.89 14.03 18.05 14.41 18.17C15.06 18.37 15.64 18.34 16.11 18.27C16.63 18.2 17.72 17.61 17.95 16.96C18.18 16.31 18.18 15.76 18.11 15.65C18.04 15.54 17.9 15.48 17.68 15.37C17.46 15.26 16.34 14.71 16.14 14.64C15.94 14.57 15.8 14.53 15.65 14.75C15.5 14.97 15.08 15.46 14.95 15.6C14.83 15.74 14.7 15.76 14.48 15.65C14.26 15.54 13.55 15.31 12.71 14.56C12.05 13.97 11.61 13.24 11.48 13.02C11.35 12.8 11.47 12.68 11.58 12.57C11.68 12.47 11.79 12.32 11.9 12.2C12.01 12.08 12.04 11.99 12.12 11.82C12.2 11.66 12.16 11.49 12.1 11.38C12.04 11.27 11.54 10.06 11.35 9.6Z" />
+            </svg>
+        </a>
+    """, unsafe_allow_html=True)
 
     # Pantalla de Éxito
     if st.session_state.pedido_exitoso:
@@ -427,11 +452,10 @@ if menu == "🛒 Tienda Online":
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets
+                        # Guardar Pedido
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
-                        # Cálculo de ganancia real (Venta - Costo) + Delivery
                         try:
                             ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
                             ganancia_final = ganancia_prod + delivery_cost
