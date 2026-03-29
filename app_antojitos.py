@@ -604,28 +604,28 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
         # --- 3. MÉTRICAS (Lógica de ganancia corregida) ---
-total_ventas = df_v['total'].sum()
+        total_ventas = df_v['total'].sum()
 
-# 1. Ganancia base de los productos (lo que ya está en la columna 'ganancia' del Excel)
-ganancia_productos_base = df_v['ganancia'].sum()
+        # 1. Ganancia base de los productos (lo que ya está en la columna 'ganancia' del Excel)
+        ganancia_productos_base = df_v['ganancia'].sum()
 
-# 2. Ganancia por Delivery (Se cobra una sola vez por cada fila/pedido)
-# Usamos 'costo_delivery' que viene de tu st.number_input del Sidebar
-cantidad_pedidos = len(df_v)
-ganancia_delivery_total = cantidad_pedidos * costo_delivery
+        # 2. Ganancia por Delivery (Se cobra una sola vez por cada fila/pedido)
+        # Usamos 'costo_delivery' que viene de tu st.number_input del Sidebar
+        cantidad_pedidos = len(df_v)
+        ganancia_delivery_total = cantidad_pedidos * costo_delivery
 
-# 3. Ganancia Total Real
-ganancia_total_real = ganancia_productos_base + ganancia_delivery_total
+        # 3. Ganancia Total Real
+        ganancia_total_real = ganancia_productos_base + ganancia_delivery_total
 
-# Cálculo de rentabilidad
-porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
+        # Cálculo de rentabilidad
+        porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
 
-# Mostrar en pantalla
-m1, m2, m3, m4 = st.columns(4)
-m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
-m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
-m3.metric("Pedidos Totales", cantidad_pedidos)
-m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
+        # Mostrar en pantalla
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
+        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
+        m3.metric("Pedidos Totales", cantidad_pedidos)
+        m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
 
         # --- 4. GRÁFICO DE PRODUCTOS ---
         st.subheader("🍕 Distribución de Ventas por Producto")
