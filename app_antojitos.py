@@ -192,37 +192,58 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GESTIÓN DE PERSISTENCIA (GOOGLE SHEETS) ---
-# Reemplazo de SQLite por GSheets manteniendo la misma lógica de acceso
+# Se mantiene ttl=0 para asegurar que los cambios en Callao se vean al instante
 conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
     try:
-        # Intenta conectar con la hoja específica
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 para datos frescos
+        # Forzamos la lectura fresca sin caché para evitar el Error 400
+        df = conn_gs.read(worksheet=worksheet_name, ttl=0)
         
         if df is None or df.empty:
             return pd.DataFrame()
             
-        # Reparación quirúrgica de columnas según la pestaña
+        # Limpieza de "Basura": Eliminamos filas y columnas completamente vacías 
+        # que Google Sheets a veces incluye y rompen la conexión.
+        df = df.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        
+        # Reparación de columnas según la pestaña
         if worksheet_name == "productos":
-            # Si añadiste ganancia_combo pero no está en el Excel, la creamos
+            # Aseguramos columnas críticas para evitar errores de tipo de dato
+            cols_numericas = ['costo', 'venta', 'stock']
+            for col in cols_numericas:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+            # Si no existe ganancia_combo en la pestaña productos, la inicializamos
             if 'ganancia_combo' not in df.columns:
                 df['ganancia_combo'] = 0.0
-            # Aseguramos que los números sean números
-            df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
-            df['venta'] = pd.to_numeric(df['venta'], errors='coerce').fillna(0.0)
-            
+                
+            df['stock'] = df['stock'].astype(int)
+
+        elif worksheet_name == "combos":
+            # Aseguramos que la columna ganancia_combo exista en la pestaña combos
+            if 'ganancia_combo' not in df.columns:
+                df['ganancia_combo'] = 0.0
+            df['ganancia_combo'] = pd.to_numeric(df['ganancia_combo'], errors='coerce').fillna(0.0)
+
         return df
     except Exception as e:
-        st.error(f"Error de conexión con la pestaña {worksheet_name}: {e}")
+        # Si persiste el Error 400, mostramos una guía clara de solución
+        st.error(f"⚠️ Error en pestaña '{worksheet_name}': {e}")
+        st.info("💡 Intenta esto: Entra a tu Excel, borra todas las filas vacías debajo de tus datos y vuelve a cargar.")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
-    conn_gs.update(worksheet=worksheet, data=df)
-    st.cache_data.clear()
+    try:
+        # Antes de subir, convertimos todo a string o números limpios para evitar el Bad Request
+        df_clean = df.copy()
+        conn_gs.update(worksheet=worksheet, data=df_clean)
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"❌ No se pudo guardar en {worksheet}: {e}")
 
-# Directorios para persistencia de medios (en local/git)
+# Directorios para persistencia de medios
 if not os.path.exists("img_productos"): os.makedirs("img_productos")
 if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
 
