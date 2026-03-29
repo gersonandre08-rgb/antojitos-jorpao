@@ -16,7 +16,7 @@ def get_peru_time():
 # --- 1. CONFIGURACIÓN DE PÁGINA Y ESTILOS ---
 st.set_page_config(page_title="Antojitos JorPao", page_icon="🥤", layout="wide")
 
-# Estilos CSS - Tu diseño original de 561 líneas
+# Estilos CSS - Tu diseño original
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Bungee&family=Inter:wght@400;700&display=swap');
@@ -134,21 +134,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- 2. GESTIÓN DE PERSISTENCIA (GOOGLE SHEETS) ---
-# Reemplazo de SQLite por GSheets manteniendo la misma lógica de acceso
 conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet):
     try:
         return conn_gs.read(worksheet=worksheet, ttl=0)
     except Exception:
-        # En caso de que la pestaña no exista todavía en el setup inicial
         return pd.DataFrame()
 
 def update_data(df, worksheet):
     conn_gs.update(worksheet=worksheet, data=df)
     st.cache_data.clear()
 
-# Directorios para persistencia de medios (en local/git)
 if not os.path.exists("img_productos"): os.makedirs("img_productos")
 if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
 
@@ -180,10 +177,10 @@ if 'nombre_usuario' not in st.session_state: st.session_state.nombre_usuario = "
 if 'pedido_exitoso' not in st.session_state: st.session_state.pedido_exitoso = False
 if 'temp_combo_items' not in st.session_state: st.session_state.temp_combo_items = []
 if 'form_submitted' not in st.session_state: st.session_state.form_submitted = False
+if 'ultimo_pedido_id' not in st.session_state: st.session_state.ultimo_pedido_id = None
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    # Usando el nombre del archivo exacto que proporcionaste
     if os.path.exists("logo.png"): 
         st.image("logo.png", use_container_width=True)
     
@@ -199,18 +196,17 @@ with st.sidebar:
     menu = st.radio("Ir a:", opciones)
     
     st.markdown("---")
-    st.caption(f"Versión 2.5 - {get_peru_time().strftime('%Y')}")
+    st.caption(f"Versión 2.7 - {get_peru_time().strftime('%Y')}")
     if st.button("🗑️ Vaciar Carrito"):
         st.session_state.carrito = []
         st.rerun()
 
 # ==============================================================================
-# VISTA: TIENDA ONLINE (LÓGICA COMPLETA)
+# VISTA: TIENDA ONLINE
 # ==============================================================================
 if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
-    # Botón flotante del carrito
     if st.session_state.carrito:
         cant_items = len(st.session_state.carrito)
         st.markdown(f"""
@@ -219,16 +215,9 @@ if menu == "🛒 Tienda Online":
             </a>
         """, unsafe_allow_html=True)
 
-    # Pantalla de Éxito
     if st.session_state.pedido_exitoso:
         st.balloons()
         st.success("## ✅ ¡Pedido recibido con éxito!")
-        st.markdown("""
-            ### Pasos a seguir:
-            1. Haz clic en el botón verde de abajo para avisarnos por WhatsApp.
-            2. La vecina confirmará tu pedido en unos minutos.
-            3. ¡Prepara el hambre! 😋
-        """)
         st.markdown(f'<a href="https://wa.me/51963142733?text=Hola%20JorPao!%20Acabo%20de%20hacer%20un%20pedido%20en%20la%20web.%20Mi%20nombre%20es%20{st.session_state.nombre_usuario}" target="_blank"><button style="width:100%;height:60px;background:#25D366;color:white;border:none;border-radius:15px;font-weight:bold;font-size:18px;cursor:pointer;">🟢 ENVIAR WHATSAPP DE CONFIRMACIÓN</button></a>', unsafe_allow_html=True)
         if st.button("⬅️ Regresar a la Vitrina"): 
             st.session_state.pedido_exitoso = False
@@ -238,7 +227,6 @@ if menu == "🛒 Tienda Online":
     tab_tienda, tab_carrito = st.tabs(["🛍️ VER VITRINA", "🛒 MI PEDIDO"])
 
     with tab_tienda:
-        # Widget de Clima
         tit_clima, cat_sug, msg_clima = obtener_sugerencia_clima()
         st.markdown(f"""
             <div class="clima-section">
@@ -247,7 +235,6 @@ if menu == "🛒 Tienda Online":
             </div>
         """, unsafe_allow_html=True)
 
-        # Datos del Cliente
         col_u1, col_u2 = st.columns(2)
         with col_u1:
             st.session_state.nombre_usuario = st.text_input("¿Cómo te llamas, vecino/a?", value=st.session_state.nombre_usuario)
@@ -259,7 +246,7 @@ if menu == "🛒 Tienda Online":
         elif zona == "Selecciona...": 
             st.info("Selecciona tu zona para ver los productos disponibles."); st.stop()
 
-        # Sección de Combos
+        # Combos con campo de ganancia neta manual
         df_combos = load_data("combos")
         if not df_combos.empty:
             df_combos = df_combos[df_combos['activo'] == 1]
@@ -276,7 +263,13 @@ if menu == "🛒 Tienda Online":
                         </div>
                         """, unsafe_allow_html=True)
                         if st.button(f"Pedir {c['nombre_combo']}", key=f"btn_c_{c['id']}", use_container_width=True):
-                            st.session_state.carrito.append({'id': f"C-{c['id']}", 'nombre': f"COMBO: {c['nombre_combo']}", 'venta': float(c['precio_combo']), 'costo': 0})
+                            # Se hereda ganancia_neta si existe en el sheet
+                            gn = float(c['ganancia_neta']) if 'ganancia_neta' in c else 0
+                            st.session_state.carrito.append({
+                                'id': f"C-{c['id']}", 'nombre': f"COMBO: {c['nombre_combo']}", 
+                                'venta': float(c['precio_combo']), 'costo': float(c['precio_combo']) - gn,
+                                'imagen_path': None
+                            })
                             st.toast(f"¡{c['nombre_combo']} al carrito!")
 
         # Categorías y Productos
@@ -294,8 +287,6 @@ if menu == "🛒 Tienda Online":
                         for _, p in prods_cat.iterrows():
                             st.markdown('<div class="product-card">', unsafe_allow_html=True)
                             c1, c2, c3 = st.columns([1, 2, 1])
-                            
-                            # Manejo de imagen
                             img_p = p['imagen_path'] if p['imagen_path'] and os.path.exists(str(p['imagen_path'])) else None
                             if img_p:
                                 c1.image(img_p, width=120)
@@ -313,307 +304,237 @@ if menu == "🛒 Tienda Online":
 
     with tab_carrito:
         st.markdown('<div id="mi-pedido"></div>', unsafe_allow_html=True)
+        
+        # CONSULTA TEMPORAL DEL PEDIDO (Para que el cliente vea qué pidió)
+        if st.session_state.ultimo_pedido_id:
+            df_hist = load_data("pedidos")
+            mi_p = df_hist[df_hist['id'] == st.session_state.ultimo_pedido_id]
+            if not mi_p.empty:
+                st.markdown("### 📄 Tu último pedido realizado")
+                with st.container(border=True):
+                    row_p = mi_p.iloc[0]
+                    st.write(f"**Pedido #{row_p['id']}** - {row_p['estado']}")
+                    items_p = json.loads(row_p['productos_json'])
+                    for it in items_p:
+                        st.write(f"• {it['nombre']} (S/ {float(it['venta']):.2f})")
+                    st.write(f"**Total: S/ {float(row_p['total']):.2f}**")
+                    
+                    # Generar texto para descarga
+                    txt_ticket = f"Antojitos JorPao - Pedido #{row_p['id']}\nCliente: {row_p['cliente']}\nTotal: S/ {row_p['total']}\nFecha: {row_p['fecha']}"
+                    st.download_button("📥 Descargar Resumen (TXT)", txt_ticket, file_name=f"pedido_{row_p['id']}.txt")
+                st.markdown("---")
+
         if st.session_state.carrito:
-            df_cart = pd.DataFrame(st.session_state.carrito)
-            # Costo de delivery según zona (puedes parametrizarlo)
+            st.markdown("### 🛒 Resumen de tu Compra")
             delivery_cost = 2.0
-            subtotal = df_cart['venta'].astype(float).sum()
+            
+            # REDISEÑO ESTÉTICO DEL CARRITO
+            for index, row in enumerate(st.session_state.carrito):
+                with st.container(border=True):
+                    col_img, col_txt, col_del = st.columns([1, 4, 1])
+                    with col_img:
+                        img_c = row.get('imagen_path')
+                        if img_c and os.path.exists(str(img_c)): st.image(img_c, width=60)
+                        else: st.markdown("📦")
+                    with col_txt:
+                        st.write(f"**{row['nombre']}**")
+                        st.write(f"Precio: S/ {float(row['venta']):.2f}")
+                    with col_del:
+                        if st.button("🗑️", key=f"rem_{index}"):
+                            st.session_state.carrito.pop(index)
+                            st.rerun()
+
+            subtotal = sum(float(it['venta']) for it in st.session_state.carrito)
             total = subtotal + delivery_cost
             
-            st.markdown("### 🛒 Tu Lista de Antojitos")
-            for index, row in df_cart.iterrows():
-                col_i, col_p, col_x = st.columns([3, 1, 1])
-                col_i.write(f"**{row['nombre']}**")
-                col_p.write(f"S/ {float(row['venta']):.2f}")
-                if col_x.button("❌", key=f"rem_{index}"):
-                    st.session_state.carrito.pop(index)
-                    st.rerun()
-
-            st.markdown("---")
-            st.markdown(f"**Subtotal:** S/ {subtotal:.2f}")
-            st.markdown(f"**Delivery:** S/ {delivery_cost:.2f}")
+            st.markdown(f"**Subtotal:** S/ {subtotal:.2f} | **Delivery:** S/ {delivery_cost:.2f}")
             st.markdown(f"## **Total: S/ {total:.2f}**")
 
             with st.container(border=True):
                 st.subheader("📝 Datos Finales")
                 u_cel = st.text_input("Tu número de Celular", max_chars=9)
                 u_dir = st.text_area("Dirección exacta / Nro Dpto / Referencia")
-                
                 metodo = st.radio("¿Cómo deseas pagar?", ["Yape / Plin", "Efectivo"])
+                
                 cap_pago = None
                 vuelto_de = 0
-                
                 if metodo == "Yape / Plin":
-                    st.markdown("""
-                        <div style="background:#00D1B2; color:white; padding:15px; border-radius:10px; text-align:center;">
-                            <b>Yape/Plin al: 963 142 733</b><br>A nombre de: Paula Ottiniano
-                        </div>
-                    """, unsafe_allow_html=True)
-                    cap_pago = st.file_uploader("Sube una captura de tu pago para agilizar", type=['png','jpg','jpeg'])
+                    st.markdown('<div style="background:#00D1B2; color:white; padding:10px; border-radius:10px; text-align:center;"><b>Yape/Plin: 963 142 733</b> (Paula Ottiniano)</div>', unsafe_allow_html=True)
+                    cap_pago = st.file_uploader("Sube una captura de tu pago", type=['png','jpg','jpeg'])
                 else:
-                    vuelto_de = st.number_input("¿Con cuánto pagarás? (Para llevarte vuelto)", min_value=total)
+                    vuelto_de = st.number_input("¿Con cuánto pagarás?", min_value=total)
 
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
-                        st.error("Por favor, completa tu celular y dirección correctamente.")
+                        st.error("Datos incompletos.")
                     else:
-                        # Guardar captura si existe
                         p_path = ""
                         if cap_pago:
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
-                        # Cálculo de ganancia
-                        try:
-                            ganancia_p = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
-                        except:
-                            ganancia_p = 0
-                            
+                        # GANANCIA INCLUYE DELIVERY Y MANEJA COSTOS DE COMBOS
+                        ganancia_p = sum(float(it['venta']) - float(it.get('costo', 0)) for it in st.session_state.carrito)
+                        ganancia_total = ganancia_p + delivery_cost
+                        
                         nuevo_pedido = pd.DataFrame([{
-                            "id": nuevo_id, 
-                            "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
-                            "cliente": st.session_state.nombre_usuario, 
-                            "celular": u_cel, 
-                            "direccion": u_dir, 
-                            "zona": zona,
-                            "productos_json": df_cart.to_json(orient='records'), 
-                            "total": total,
-                            "ganancia": ganancia_p, 
-                            "metodo_pago": metodo, 
-                            "monto_pagado": vuelto_de,
-                            "captura_pago": p_path, 
-                            "estado": "Nuevo"
+                            "id": nuevo_id, "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
+                            "cliente": st.session_state.nombre_usuario, "celular": u_cel, 
+                            "direccion": u_dir, "zona": zona, "total": total,
+                            "productos_json": json.dumps(st.session_state.carrito), 
+                            "ganancia": ganancia_total, "metodo_pago": metodo, 
+                            "monto_pagado": vuelto_de, "captura_pago": p_path, "estado": "Nuevo"
                         }])
                         
                         update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
                         
                         # Actualizar Stock
                         df_prods_upd = load_data("productos")
-                        for pid in df_cart['id']:
-                            if str(pid).isdigit():
-                                df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
+                        for it in st.session_state.carrito:
+                            if str(it.get('id')).isdigit():
+                                df_prods_upd.loc[df_prods_upd['id'] == int(it['id']), 'stock'] -= 1
                         update_data(df_prods_upd, "productos")
                         
+                        st.session_state.ultimo_pedido_id = nuevo_id
                         st.session_state.carrito = []
                         st.session_state.pedido_exitoso = True
                         st.rerun()
-        else:
-            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
+        elif not st.session_state.ultimo_pedido_id:
+            st.info("Tu carrito está vacío.")
 
 # ==============================================================================
 # VISTA: GESTIÓN DE INVENTARIO (ADMIN)
 # ==============================================================================
 elif menu == "⚙️ Gestión de Inventario" and is_admin:
     st.header("⚙️ Gestión de Inventario")
-    
     t_stock, t_add, t_cat = st.tabs(["Stock Actual", "Añadir Producto", "Categorías"])
     
     with t_stock:
         df_inv = load_data("productos")
         if not df_inv.empty:
-            st.subheader("Editar Productos en Vivo")
             df_edit = st.data_editor(df_inv, num_rows="dynamic")
-            if st.button("Guardar Cambios en Inventario"):
+            if st.button("Guardar Cambios"):
                 update_data(df_edit, "productos")
-                st.success("¡Base de datos de productos actualizada!")
-        else:
-            st.write("No hay productos registrados.")
+                st.success("Actualizado.")
 
     with t_add:
-        with st.form("nuevo_prod_form"):
-            col_f1, col_f2 = st.columns(2)
-            n_name = col_f1.text_input("Nombre del Producto")
-            df_c_list = load_data("categorias")
-            n_cat = col_f2.selectbox("Categoría", df_c_list['nombre'].tolist() if not df_c_list.empty else ["Sin categorías"])
-            
-            col_f3, col_f4, col_f5 = st.columns(3)
-            n_costo = col_f3.number_input("Costo de Compra (S/)", min_value=0.0)
-            n_venta = col_f4.number_input("Precio de Venta (S/)", min_value=0.0)
-            n_stock = col_f5.number_input("Stock Inicial", min_value=0, step=1)
-            
-            n_img = st.file_uploader("Imagen del Producto", type=['png','jpg','jpeg'])
-            
-            if st.form_submit_button("Registrar Producto"):
-                if n_name:
-                    path_img = ""
-                    if n_img:
-                        path_img = f"img_productos/{n_name.replace(' ','_')}.png"
-                        with open(path_img, "wb") as f: f.write(n_img.getbuffer())
-                    
-                    df_actual = load_data("productos")
-                    next_id = int(df_actual['id'].max() + 1) if not df_actual.empty else 1
-                    
-                    nuevo_p = pd.DataFrame([{
-                        "id": next_id, "nombre": n_name, "categoria": n_cat, 
-                        "costo": n_costo, "venta": n_venta, "stock": n_stock, 
-                        "imagen_path": path_img
-                    }])
-                    update_data(pd.concat([df_actual, nuevo_p], ignore_index=True), "productos")
-                    st.success(f"Producto '{n_name}' registrado.")
-                else:
-                    st.error("El nombre es obligatorio.")
+        with st.form("nuevo_prod"):
+            n_name = st.text_input("Nombre")
+            df_cl = load_data("categorias")
+            n_cat = st.selectbox("Categoría", df_cl['nombre'].tolist() if not df_cl.empty else ["Sin categorías"])
+            c1, c2, c3 = st.columns(3)
+            n_costo = c1.number_input("Costo (S/)", 0.0)
+            n_venta = c2.number_input("Venta (S/)", 0.0)
+            n_stock = c3.number_input("Stock", 0, step=1)
+            n_img = st.file_uploader("Imagen", type=['png','jpg','jpeg'])
+            if st.form_submit_button("Registrar"):
+                path_i = f"img_productos/{n_name.replace(' ','_')}.png" if n_img else ""
+                if n_img:
+                    with open(path_i, "wb") as f: f.write(n_img.getbuffer())
+                df_act = load_data("productos")
+                nid = int(df_act['id'].max() + 1) if not df_act.empty else 1
+                new_p = pd.DataFrame([{"id": nid, "nombre": n_name, "categoria": n_cat, "costo": n_costo, "venta": n_venta, "stock": n_stock, "imagen_path": path_i}])
+                update_data(pd.concat([df_act, new_p], ignore_index=True), "productos")
+                st.success("Producto guardado.")
 
     with t_cat:
-        st.subheader("Categorías Disponibles")
-        df_c_admin = load_data("categorias")
-        st.dataframe(df_c_admin, use_container_width=True)
-        
-        with st.form("nueva_cat"):
-            new_cat_name = st.text_input("Nombre de Nueva Categoría")
-            if st.form_submit_button("Añadir Categoría"):
-                if new_cat_name:
-                    next_cid = int(df_c_admin['id'].max() + 1) if not df_c_admin.empty else 1
-                    df_c_admin = pd.concat([df_c_admin, pd.DataFrame([{"id": next_cid, "nombre": new_cat_name}])], ignore_index=True)
-                    update_data(df_c_admin, "categorias")
+        df_ca = load_data("categorias")
+        st.dataframe(df_ca)
+        with st.form("nc"):
+            nn = st.text_input("Nueva Categoría")
+            if st.form_submit_button("Añadir"):
+                if nn:
+                    nid = int(df_ca['id'].max() + 1) if not df_ca.empty else 1
+                    update_data(pd.concat([df_ca, pd.DataFrame([{"id": nid, "nombre": nn}])], ignore_index=True), "categorias")
                     st.rerun()
 
 # ==============================================================================
-# VISTA: REPORTES Y BANDEJA (ADMIN)
+# VISTA: REPORTES (ADMIN)
 # ==============================================================================
 elif menu == "📊 Análisis y Reportes" and is_admin:
     st.header("📊 Análisis de Ventas")
     df_v = load_data("pedidos")
-    
     if not df_v.empty:
         df_v['total'] = df_v['total'].astype(float)
         df_v['ganancia'] = df_v['ganancia'].astype(float)
-        
-        # Métricas
-        m1, m2, m3, m4 = st.columns(4)
+        m1, m2, m3 = st.columns(3)
         m1.metric("Ventas Totales", f"S/ {df_v['total'].sum():.2f}")
-        m2.metric("Ganancia Total", f"S/ {df_v['ganancia'].sum():.2f}", delta=f"{df_v['ganancia'].sum()/df_v['total'].sum()*100:.1f}%")
+        m2.metric("Ganancia Neta (Inc. Delivery)", f"S/ {df_v['ganancia'].sum():.2f}")
         m3.metric("Pedidos", len(df_v))
-        m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
-
-        # Gráfico simple de ventas
-        st.subheader("Tendencia de Ventas")
-        df_v['fecha_dt'] = pd.to_datetime(df_v['fecha'])
-        ventas_diarias = df_v.groupby(df_v['fecha_dt'].dt.date)['total'].sum()
-        st.line_chart(ventas_diarias)
-
-        # Bandeja de Pedidos
-        st.subheader("🔔 Bandeja de Pedidos Activos")
-        pendientes = df_v[df_v['estado'] == 'Nuevo'].sort_values('id', ascending=False)
         
-        if pendientes.empty:
-            st.success("¡No hay pedidos pendientes! Todo entregado.")
-        else:
-            for _, ped in pendientes.iterrows():
-                with st.container(border=True):
-                    c_info, c_accion = st.columns([3, 1])
-                    c_info.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
-                    c_info.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
-                    c_info.write(f"💰 S/ {ped['total']} ({ped['metodo_pago']})")
-                    
-                    if c_accion.button(f"Marcar Entregado ✅", key=f"btn_ent_{ped['id']}"):
-                        df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
-                        update_data(df_v, "pedidos")
-                        st.rerun()
-                    
-                    with st.expander("Ver Detalle"):
-                        try:
-                            items = json.loads(ped['productos_json'])
-                            for it in items:
-                                st.write(f"- {it['nombre']} (S/ {it['venta']})")
-                        except:
-                            st.write("Error cargando detalle.")
-
-        st.markdown("---")
-        st.subheader("📥 Exportar Datos")
-        st.download_button("Descargar Todo en Excel", data=to_excel(df_v), file_name=f"ventas_jorpao_{get_peru_time().strftime('%Y%m%d')}.xlsx")
-    else:
-        st.info("Aún no hay datos de ventas.")
+        st.subheader("Pedidos Pendientes")
+        pendientes = df_v[df_v['estado'] == 'Nuevo']
+        for _, ped in pendientes.iterrows():
+            with st.container(border=True):
+                st.write(f"**#{ped['id']} - {ped['cliente']}** (S/ {ped['total']})")
+                if st.button("Marcar Entregado ✅", key=f"ent_{ped['id']}"):
+                    df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
+                    update_data(df_v, "pedidos")
+                    st.rerun()
+        st.download_button("Exportar Excel", to_excel(df_v), file_name="ventas.xlsx")
 
 # ==============================================================================
 # VISTA: COMBOS (ADMIN)
 # ==============================================================================
 elif menu == "🎁 Gestionar Combos" and is_admin:
     st.header("🎁 Configuración de Combos")
-    
     with st.container(border=True):
-        st.subheader("Crear Nuevo Combo")
-        c_n = st.text_input("Nombre del Combo (Ej: Combo Peliculero)")
-        c_p = st.number_input("Precio del Combo", min_value=0.0)
+        c_n = st.text_input("Nombre del Combo")
+        c_p = st.number_input("Precio Venta", 0.0)
+        c_g = st.number_input("Ganancia Neta por el Combo (S/)", 0.0, help="Digita cuánto ganas libre por este combo")
         
-        st.write("Añadir productos al combo:")
-        df_p_sel = load_data("productos")
-        col_ps, col_pc, col_pb = st.columns([3, 1, 1])
-        
-        sel_p = col_ps.selectbox("Producto", df_p_sel['nombre'].tolist() if not df_p_sel.empty else [])
-        sel_c = col_pc.number_input("Cant.", min_value=1, value=1)
-        
-        if col_pb.button("➕"):
+        df_ps = load_data("productos")
+        col1, col2, col3 = st.columns([3, 1, 1])
+        sel_p = col1.selectbox("Producto", df_ps['nombre'].tolist() if not df_ps.empty else [])
+        sel_c = col2.number_input("Cant.", 1)
+        if col3.button("➕"):
             st.session_state.temp_combo_items.append(f"{sel_c}x {sel_p}")
-            
+        
         if st.session_state.temp_combo_items:
-            st.write("**Lista actual:** " + " + ".join(st.session_state.temp_combo_items))
-            if st.button("Limpiar lista"): st.session_state.temp_combo_items = []
+            st.write("Lista: " + " + ".join(st.session_state.temp_combo_items))
+            if st.button("Limpiar"): st.session_state.temp_combo_items = []
         
         if st.button("Guardar Combo"):
-            if c_n and st.session_state.temp_combo_items:
-                df_combos_act = load_data("combos")
-                nid = int(df_combos_act['id'].max() + 1) if not df_combos_act.empty else 1
-                receta = ", ".join(st.session_state.temp_combo_items)
-                new_c = pd.DataFrame([{"id": nid, "nombre_combo": c_n, "productos_ids": receta, "precio_combo": c_p, "activo": 1}])
-                update_data(pd.concat([df_combos_act, new_c], ignore_index=True), "combos")
-                st.session_state.temp_combo_items = []
-                st.success("¡Combo registrado!")
-                st.rerun()
+            df_co = load_data("combos")
+            nid = int(df_co['id'].max() + 1) if not df_co.empty else 1
+            new_c = pd.DataFrame([{
+                "id": nid, "nombre_combo": c_n, "productos_ids": ", ".join(st.session_state.temp_combo_items), 
+                "precio_combo": c_p, "ganancia_neta": c_g, "activo": 1
+            }])
+            update_data(pd.concat([df_co, new_c], ignore_index=True), "combos")
+            st.session_state.temp_combo_items = []
+            st.success("Combo Creado.")
 
 # ==============================================================================
 # VISTA: RESEÑAS
 # ==============================================================================
 elif menu == "✍️ Dejar Reseña":
-    st.title("💬 Comentarios de nuestros Vecinos")
-    
-    with st.form("form_resena"):
-        st.write("¿Qué te pareció tu antojito?")
-        r_nom = st.text_input("Nombre")
-        r_msg = st.text_area("Comentario")
-        r_star = st.slider("Calificación", 1, 5, 5)
-        
+    st.title("💬 Reseñas de Vecinos")
+    with st.form("fr"):
+        n = st.text_input("Nombre")
+        m = st.text_area("Comentario")
         if st.form_submit_button("Publicar"):
-            if r_nom and r_msg:
-                df_res_act = load_data("resenas")
-                rid = int(df_res_act['id'].max() + 1) if not df_res_act.empty else 1
-                new_r = pd.DataFrame([{
-                    "id": rid, "cliente": r_nom, "mensaje": r_msg, 
-                    "fecha": get_peru_time().strftime("%d/%m/%Y")
-                }])
-                update_data(pd.concat([df_res_act, new_r], ignore_index=True), "resenas")
-                st.success("¡Gracias por tu comentario!")
-                st.rerun()
-
-    st.markdown("---")
-    df_res_ver = load_data("resenas")
-    if not df_res_ver.empty:
-        for _, r in df_res_ver.sort_values('id', ascending=False).iterrows():
-            st.markdown(f"""
-                <div style="background:white; padding:15px; border-radius:15px; margin-bottom:10px; color:#333; border-left:5px solid #FFD700;">
-                    <b>{r['cliente']}</b> <small>({r['fecha']})</small><br>
-                    {r['mensaje']}
-                </div>
-            """, unsafe_allow_html=True)
+            df_r = load_data("resenas")
+            rid = int(df_r['id'].max() + 1) if not df_r.empty else 1
+            update_data(pd.concat([df_r, pd.DataFrame([{"id": rid, "cliente": n, "mensaje": m, "fecha": get_peru_time().strftime("%d/%m/%Y")}])], ignore_index=True), "resenas")
+            st.success("Gracias!")
+    
+    df_rv = load_data("resenas")
+    if not df_rv.empty:
+        for _, r in df_rv.sort_values('id', ascending=False).iterrows():
+            st.markdown(f'<div style="background:white; padding:10px; border-radius:10px; margin-bottom:5px; color:#333;"><b>{r["cliente"]}</b>: {r["mensaje"]}</div>', unsafe_allow_html=True)
 
 # ==============================================================================
 # VISTA: COMPROBANTES (ADMIN)
 # ==============================================================================
 elif menu == "📸 Ver Comprobantes" and is_admin:
-    st.header("📸 Galería de Pagos Yape/Plin")
-    df_img = load_data("pedidos")
-    df_img = df_img[df_img['captura_pago'] != ""]
-    
-    if not df_img.empty:
-        for _, row in df_img.iterrows():
-            with st.container(border=True):
-                st.write(f"Pedido #{row['id']} - {row['cliente']}")
-                if os.path.exists(str(row['captura_pago'])):
-                    st.image(row['captura_pago'], width=300)
-                else:
-                    st.error("Archivo no encontrado en el servidor.")
-    else:
-        st.write("No hay capturas de pantalla registradas.")
+    st.header("📸 Galería de Pagos")
+    df_im = load_data("pedidos")
+    df_im = df_im[df_im['captura_pago'] != ""]
+    for _, r in df_im.iterrows():
+        with st.container(border=True):
+            st.write(f"Pedido #{r['id']} - {r['cliente']}")
+            if os.path.exists(str(r['captura_pago'])): st.image(r['captura_pago'], width=300)
