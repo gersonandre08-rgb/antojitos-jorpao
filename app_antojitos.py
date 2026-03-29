@@ -533,9 +533,9 @@ if menu == "🛒 Tienda Online":
                         delivery_actual = float(costo_delivery) # costo_delivery viene de tu sidebar
 
                         ganancia_acumulada = sum((float(item.get('precio', 0)) - float(item.get('costo', 0))) * item.get('cantidad', 1) for item in st.session_state.carrito)
-                        
+
                         ganancia_final_con_envio = ganancia_acumulada + delivery_actual
-                        total_pedido = df_cart['subtotal'].sum() + delivery_actual
+                        total_pedido = df_cart['venta'].astype(float).sum() + delivery_actual
             
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
