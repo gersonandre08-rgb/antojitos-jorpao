@@ -7,6 +7,7 @@ from datetime import datetime
 import io
 import random
 import pytz
+from streamlit_geolocation import streamlit_geolocation
 
 def to_excel(df):
     output = io.BytesIO()
@@ -448,6 +449,24 @@ if menu == "🛒 Tienda Online":
                 st.subheader("📝 Datos Finales")
                 u_cel = st.text_input("Tu número de Celular", max_chars=9, placeholder="999888777")
                 u_dir = st.text_area("Dirección exacta / Nro Dpto / Referencia")
+
+                st.markdown("---")
+                st.subheader("📍 Ubicación Exacta")
+                st.write("Presiona el botón para que el repartidor llegue más rápido:")
+    
+                from streamlit_geolocation import streamlit_geolocation
+                location = streamlit_geolocation()
+
+                if location.get('latitude'):
+                lat = location['latitude']
+                lon = location['longitude']
+                # Enlace profesional de Google Maps
+                maps_link = f"https://www.google.com/maps?q={lat},{lon}"
+                st.success("✅ ¡Ubicación capturada con éxito!")
+                else:
+                maps_link = "No proporcionada"
+                st.warning("⚠️ GPS no activado. El repartidor usará solo la dirección escrita.")
+                st.markdown("---")
                 
                 metodo = st.radio("¿Cómo deseas pagar?", ["Yape / Plin", "Efectivo"], horizontal=True)
                 cap_pago = None
@@ -466,6 +485,9 @@ if menu == "🛒 Tienda Online":
                 # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
                 st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery). ***No olvides enviar el comprobante de pago si es yape***")
 
+                # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
+                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery). ***No olvides enviar el comprobante de pago si es yape***")
+
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
                         st.error("Por favor, completa tu celular (9 dígitos) y dirección correctamente.")
@@ -476,17 +498,23 @@ if menu == "🛒 Tienda Online":
                             if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
-                        
+        
                         # Guardar Pedido
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
-                        
+        
+                # --- CÁLCULO DE GANANCIA CORREGIDO ---
                         try:
+                            # Si el producto tiene 'ganancia_combo' definida (es un combo), usamos esa. 
+                            # Si no, usamos la resta tradicional de venta - costo.
+                        if 'ganancia_combo' in df_cart.columns and df_cart['ganancia_combo'].notna().any():
+                            ganancia_final = df_cart['ganancia_combo'].sum()
+                        else:
                             ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
-                            ganancia_final = ganancia_prod + delivery_cost
+                            ganancia_final = ganancia_prod # No sumamos delivery para no inflar la ganancia real
                         except:
-                            ganancia_final = delivery_cost
-                            
+                            ganancia_final = 0.0
+            
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
                             "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
@@ -500,23 +528,37 @@ if menu == "🛒 Tienda Online":
                             "metodo_pago": metodo, 
                             "monto_pagado": vuelto_de,
                             "captura_pago": p_path, 
-                            "estado": "Nuevo"
+                            "estado": "Nuevo",
+                            "maps_link": maps_link # Se agregó la coma faltante arriba
                         }])
-                        
+        
                         update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
-                        
+        
                         # Actualizar Stock
                         df_prods_upd = load_data("productos")
                         for pid in df_cart['id']:
                             if str(pid).isdigit():
                                 df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
                         update_data(df_prods_upd, "productos")
-                        
+        
+                        # --- ENVÍO DE WHATSAPP ---
+                        import urllib.parse
+                        lista_ws = "\n".join([f"• {row['nombre']}" for _, row in df_cart.iterrows()])
+                        mensaje_ws = (
+                            f"🛍️ *NUEVO PEDIDO - ANTOJITOS JORPAO*\n"
+                            f"👤 *Cliente:* {st.session_state.nombre_usuario}\n"
+                            f"📍 *Dirección:* {u_dir}\n"
+                            f"📦 *Productos:*\n{lista_ws}\n"
+                            f"💰 *Total:* S/ {total:.2f}\n"
+                            f"🗺️ *Ubicación:* {maps_link}"
+                        )
+                        st.write(f"https://wa.me/51999999999?text={urllib.parse.quote(mensaje_ws)}") # Link listo para el vendedor
+
                         st.session_state.carrito = []
                         st.session_state.pedido_exitoso = True
                         st.rerun()
-        else:
-            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
+                        else:
+                            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
 
 # ==============================================================================
 # VISTA: GESTIÓN DE INVENTARIO (ADMIN)
@@ -603,24 +645,20 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         df_v['total'] = pd.to_numeric(df_v['total'], errors='coerce').fillna(0)
         df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
-        # --- 3. MÉTRICAS (Cálculo Dinámico con Delivery Variable) ---
+        # --- 3. MÉTRICAS (Lógica de ganancia sincronizada con Excel) ---
         total_ventas = df_v['total'].sum()
 
-        # 1. Ganancia neta de productos (Suma de la columna 'ganancia' del Excel)
-        ganancia_prod_base = df_v['ganancia'].sum()
+        # 1. Ganancia Real: Tomamos directamente lo que ya calculaste en el Excel
+        # Si el Excel dice 2.90, el panel mostrará exactamente 2.90.
+        ganancia_total_real = df_v['ganancia'].sum()
 
-        # 2. Ganancia por Delivery (Considera el precio actual del Sidebar)
-        # Se multiplica el 'costo_delivery' del Sidebar por el número de pedidos
+        # 2. Cantidad de pedidos (Total de filas en la hoja)
         cantidad_pedidos = len(df_v)
-        ganancia_deliv_dinamica = cantidad_pedidos * costo_delivery
 
-        # 3. Ganancia Total Real (Suma ambos conceptos)
-        ganancia_total_real = ganancia_prod_base + ganancia_deliv_dinamica
-
-        # Cálculo de rentabilidad
+        # 3. Cálculo de rentabilidad
         porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
 
-        # Mostrar en pantalla con alineación exacta
+        # Mostrar en pantalla
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
         m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")

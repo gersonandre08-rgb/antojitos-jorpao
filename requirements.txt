@@ -6,3 +6,4 @@ xlsxwriter
 plotly
 google-auth
 gspread
+streamlit-geolocation
