@@ -195,11 +195,27 @@ st.markdown("""
 # Reemplazo de SQLite por GSheets manteniendo la misma lógica de acceso
 conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
-def load_data(worksheet):
+def load_data(worksheet_name):
     try:
-        return conn_gs.read(worksheet=worksheet, ttl=0)
-    except Exception:
-        # En caso de que la pestaña no exista todavía en el setup inicial
+        # Intenta conectar con la hoja específica
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(worksheet=worksheet_name, ttl=0) # ttl=0 para datos frescos
+        
+        if df is None or df.empty:
+            return pd.DataFrame()
+            
+        # Reparación quirúrgica de columnas según la pestaña
+        if worksheet_name == "productos":
+            # Si añadiste ganancia_combo pero no está en el Excel, la creamos
+            if 'ganancia_combo' not in df.columns:
+                df['ganancia_combo'] = 0.0
+            # Aseguramos que los números sean números
+            df['stock'] = pd.to_numeric(df['stock'], errors='coerce').fillna(0).astype(int)
+            df['venta'] = pd.to_numeric(df['venta'], errors='coerce').fillna(0.0)
+            
+        return df
+    except Exception as e:
+        st.error(f"Error de conexión con la pestaña {worksheet_name}: {e}")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
