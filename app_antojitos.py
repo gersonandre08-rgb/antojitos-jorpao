@@ -529,17 +529,13 @@ if menu == "🛒 Tienda Online":
                             if "productos_ids" in item or 'ganancia_combo' in item:
                                 # Usamos el valor ajustable del Excel (ej. 0.70)
                                 ganancia_item = float(item.get('ganancia_combo', 0))
-                            else:
-                                # Producto simple: Venta - Costo
-                                v = float(item.get('precio', 0))
-                                c = float(item.get('costo', 0))
-                                ganancia_item = v - c
-
-                            cantidad_item = int(item.get('cantidad', 1))
-                            ganancia_acumulada += (ganancia_item * cantidad_item)
 
                         delivery_actual = float(costo_delivery) # costo_delivery viene de tu sidebar
+
+                        ganancia_acumulada = sum((float(item.get('precio', 0)) - float(item.get('costo', 0))) * item.get('cantidad', 1) for item in st.session_state.carrito)
+                        
                         ganancia_final_con_envio = ganancia_acumulada + delivery_actual
+                        total_pedido = df_cart['subtotal'].sum() + delivery_actual
             
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
