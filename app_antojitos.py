@@ -456,7 +456,7 @@ with st.sidebar:
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets (o archivo local según tu configuración)
+                        # Guardar en GSheets (o archivo local)
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
