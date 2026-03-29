@@ -534,8 +534,9 @@ if menu == "🛒 Tienda Online":
                                 v = float(item.get('precio', 0))
                                 c = float(item.get('costo', 0))
                                 ganancia_item = v - c
-                
-                            ganancia_acumulada += (ganancia_item * item['cantidad'])
+
+                            cantidad_item = int(item.get('cantidad', 1))
+                            ganancia_acumulada += (ganancia_item * cantidad_item)
 
                         # Sumamos el delivery ajustable a la ganancia total del pedido
                         ganancia_final_con_envio = ganancia_acumulada + delivery_actual
@@ -953,35 +954,49 @@ elif menu == "✍️ Dejar Reseña":
 # ==============================================================================
 elif menu == "📸 Ver Comprobantes" and is_admin:
     st.header("📸 Galería de Pagos Yape/Plin")
-    df_img = load_data("pedidos")
     
-    # Filtramos pedidos que tengan una ruta de captura de pago registrada
-    df_img = df_img[df_img['captura_pago'] != ""]
-    
-    if not df_img.empty:
-        # Mostramos de los más recientes a los más antiguos
-        for _, row in df_img.sort_values('id', ascending=False).iterrows():
-            with st.container(border=True):
-                st.subheader(f"Pedido #{row['id']} - {row['cliente']}")
-                st.write(f"📅 Fecha: {row['fecha']} | 💰 Total: S/ {row['total']:.2f}")
-                
-                ruta_foto = str(row['captura_pago'])
-                
-                if os.path.exists(ruta_foto):
-                    # Mostramos la imagen en pantalla
-                    st.image(ruta_foto, caption=f"Comprobante de {row['cliente']}", width=350)
-                    
-                    # --- OPCIÓN DE DESCARGA ---
-                    with open(ruta_foto, "rb") as file:
-                        btn = st.download_button(
-                            label="📥 Descargar Comprobante",
-                            data=file,
-                            file_name=f"comprobante_pedido_{row['id']}.png",
-                            mime="image/png",
-                            use_container_width=True
-                        )
-                else:
-                    st.error(f"⚠️ El archivo '{ruta_foto}' no se encuentra en el servidor.")
-                    st.info("Esto puede pasar si la imagen se borró de la carpeta temporal o si hubo un error en la subida.")
-    else:
-        st.info("Aún no hay capturas de pantalla registradas en el sistema.")
+    # --- ACTUALIZACIÓN CON SEGURO ANTICAÍDAS ---
+    try:
+        df_img = load_data("pedidos")
+        
+        # Verificamos si la columna existe antes de cualquier operación
+        if 'captura_pago' in df_img.columns:
+            # Filtramos tratando nulos y vacíos para evitar errores de comparación
+            df_img = df_img[df_img['captura_pago'].fillna("") != ""]
+            
+            if not df_img.empty:
+                # Mostramos de los más recientes a los más antiguos
+                for _, row in df_img.sort_values('id', ascending=False).iterrows():
+                    with st.container(border=True):
+                        st.subheader(f"Pedido #{row['id']} - {row['cliente']}")
+                        
+                        # Manejo seguro de conversión a float para evitar errores visuales
+                        total_val = float(row['total']) if 'total' in row else 0.0
+                        st.write(f"📅 Fecha: {row['fecha']} | 💰 Total: S/ {total_val:.2f}")
+                        
+                        ruta_foto = str(row['captura_pago'])
+                        
+                        if os.path.exists(ruta_foto):
+                            # Mostramos la imagen en pantalla
+                            st.image(ruta_foto, caption=f"Comprobante de {row['cliente']}", width=350)
+                            
+                            # --- OPCIÓN DE DESCARGA ---
+                            with open(ruta_foto, "rb") as file:
+                                btn = st.download_button(
+                                    label="📥 Descargar Comprobante",
+                                    data=file,
+                                    file_name=f"comprobante_pedido_{row['id']}.png",
+                                    mime="image/png",
+                                    use_container_width=True
+                                )
+                        else:
+                            st.error(f"⚠️ El archivo '{ruta_foto}' no se encuentra en el servidor.")
+                            st.info("Esto puede pasar si la imagen se borró de la carpeta temporal o si hubo un error en la subida.")
+            else:
+                st.info("Aún no hay capturas de pantalla registradas en el sistema.")
+        else:
+            st.warning("⚠️ No se encontró la columna 'captura_pago' en el archivo Excel.")
+            
+    except Exception as e:
+        # Captura errores de cuota (429) o conexión (400) sin cerrar la app
+        st.error(f"❌ Error al cargar los datos de la galería: {e}")
