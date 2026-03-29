@@ -191,32 +191,42 @@ st.markdown("""
     <div class="subtitle">¡ENDULZAMOS TU DIA, VECINO/A!</div>
 """, unsafe_allow_html=True)
 
-# --- 2. GESTIÓN DE PERSISTENCIA (GOOGLE SHEETS) ---
-# Usamos un objeto de conexión simplificado
+# --- 2. GESTIÓN DE PERSISTENCIA (SINCRONIZACIÓN TOTAL) ---
+# Usamos la conexión global que ya tenías configurada
+conn_gs = st.connection("gsheets", type=GSheetsConnection)
+
 def load_data(worksheet_name):
     try:
-        # Forzamos la conexión limpia en cada llamado
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        # Lectura directa sin ttl para forzar datos reales
+        # Si el error 400 persiste aquí, es un tema de permisos o URL en Secrets
+        df = conn_gs.read(worksheet=worksheet_name, ttl=0)
         
-        # Leemos el archivo sin pre-procesar, para ver si el error 400 es por el rango
-        df = conn.read(worksheet=worksheet_name, ttl=0)
-        
-        if df is None:
+        if df is None or df.empty:
             return pd.DataFrame()
-            
+        
+        # Sincronización mínima de tipos de datos para el editor
+        if worksheet_name == "productos":
+            # Solo convertimos si las columnas existen, sin crear nada nuevo aquí
+            for col in ['stock', 'venta', 'costo']:
+                if col in df.columns:
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            if 'stock' in df.columns:
+                df['stock'] = df['stock'].astype(int)
+
         return df
     except Exception as e:
-        st.error(f"Error técnico de Google (400): {e}")
+        # Este mensaje te dirá si el problema es el nombre de la pestaña
+        st.error(f"Error de comunicación (400) en '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        conn.update(worksheet=worksheet, data=df)
+        # Guardado directo sin limpiar filas para no descuadrar el rango de Google
+        conn_gs.update(worksheet=worksheet, data=df)
         st.cache_data.clear()
-        st.success("Guardado exitoso.")
+        st.success("✅ Cambios guardados en la nube.")
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"❌ Error al guardar en {worksheet}: {e}")
 
 # --- 3. FUNCIONES DE LÓGICA DE NEGOCIO ---
 def obtener_sugerencia_clima():
