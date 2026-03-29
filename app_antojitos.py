@@ -599,7 +599,7 @@ if menu == "🛒 Tienda Online":
                     st.session_state.pedido_exitoso = True
                     st.rerun()
         else:
-            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
+            st.info("Tu pedido ha sido enviado. Vamos a enviarlo pronto! ¡Mira nuestra vitrina y anímate por algo más para compartir!")
 
 # ==============================================================================
 # VISTA: GESTIÓN DE INVENTARIO (ADMIN)
