@@ -458,14 +458,14 @@ if menu == "🛒 Tienda Online":
                 location = streamlit_geolocation()
 
                 if location.get('latitude'):
-                lat = location['latitude']
-                lon = location['longitude']
-                # Enlace profesional de Google Maps
-                maps_link = f"https://www.google.com/maps?q={lat},{lon}"
-                st.success("✅ ¡Ubicación capturada con éxito!")
+                    lat = location['latitude']
+                    lon = location['longitude']
+                    # Enlace profesional de Google Maps
+                    maps_link = f"https://www.google.com/maps?q={lat},{lon}"
+                    st.success("✅ ¡Ubicación capturada con éxito!")
                 else:
-                maps_link = "No proporcionada"
-                st.warning("⚠️ GPS no activado. El repartidor usará solo la dirección escrita.")
+                    maps_link = "No proporcionada"
+                    st.warning("⚠️ GPS no activado. El repartidor usará solo la dirección escrita.")
                 st.markdown("---")
                 
                 metodo = st.radio("¿Cómo deseas pagar?", ["Yape / Plin", "Efectivo"], horizontal=True)
