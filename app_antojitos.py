@@ -260,28 +260,55 @@ with st.sidebar:
 if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
-    # Botón flotante del carrito
-    if st.session_state.carrito:
+    # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN) ---
+    if st.session_state.carrito and not st.session_state.pedido_exitoso:
         cant_items = len(st.session_state.carrito)
         st.markdown(f"""
+            <style>
+            .floating-cart {{
+                position: fixed; bottom: 85px; right: 20px; z-index: 999;
+                background: #FF4500; color: white; padding: 15px 20px;
+                border-radius: 50px; text-decoration: none !important; font-weight: bold;
+                box-shadow: 2px 4px 10px rgba(0,0,0,0.3); border: 2px solid white;
+                display: flex; align-items: center; transition: 0.3s;
+            }}
+            .floating-cart:hover {{ transform: scale(1.05); color: white; }}
+            </style>
             <a href="#mi-pedido" class="floating-cart">
-                <span>🛒 VER MI PEDIDO ({cant_items})</span>
+                <span>🛒 VER MI RESUMEN ({cant_items})</span>
             </a>
         """, unsafe_allow_html=True)
 
-    # Pantalla de Éxito
+    # --- 2. PANTALLA DE ÉXITO Y SEGUIMIENTO POST-ENVÍO ---
     if st.session_state.pedido_exitoso:
         st.balloons()
         st.success("## ✅ ¡Pedido recibido con éxito!")
-        st.markdown("""
+        st.markdown(f"""
             ### Pasos a seguir:
             1. Haz clic en el botón verde de abajo para avisarnos por WhatsApp.
             2. La vecina confirmará tu pedido en unos minutos.
             3. ¡Prepara el hambre! 😋
         """)
         st.markdown(f'<a href="https://wa.me/51963142733?text=Hola%20JorPao!%20Acabo%20de%20hacer%20un%20pedido%20en%20la%20web.%20Mi%20nombre%20es%20{st.session_state.nombre_usuario}" target="_blank"><button style="width:100%;height:60px;background:#25D366;color:white;border:none;border-radius:15px;font-weight:bold;font-size:18px;cursor:pointer;">🟢 ENVIAR WHATSAPP DE CONFIRMACIÓN</button></a>', unsafe_allow_html=True)
+        
+        # Nueva opción para ver el pedido solicitado después de enviar
+        if st.button("📋 Ver resumen de mi pedido solicitado", use_container_width=True):
+            st.session_state.mostrar_detalle_ultimo = True
+        
+        if st.session_state.get('mostrar_detalle_ultimo'):
+            try:
+                df_ultimo = pd.read_json(st.session_state.ultimo_pedido_json)
+                with st.expander("📝 Detalle de tu pedido enviado", expanded=True):
+                    for _, item in df_ultimo.iterrows():
+                        st.write(f"• {item['nombre']} - S/ {float(item['venta']):.2f}")
+                    st.divider()
+                    st.write(f"**Total pagado: S/ {df_ultimo['venta'].astype(float).sum() + 2.0:.2f}**")
+            except:
+                st.info("Tu pedido ya está en proceso.")
+
         if st.button("⬅️ Regresar a la Vitrina"): 
             st.session_state.pedido_exitoso = False
+            st.session_state.mostrar_detalle_ultimo = False
             st.rerun()
         st.stop()
 
@@ -326,7 +353,7 @@ if menu == "🛒 Tienda Online":
                         </div>
                         """, unsafe_allow_html=True)
                         if st.button(f"Pedir {c['nombre_combo']}", key=f"btn_c_{c['id']}", use_container_width=True):
-                            st.session_state.carrito.append({'id': f"C-{c['id']}", 'nombre': f"COMBO: {c['nombre_combo']}", 'venta': float(c['precio_combo']), 'costo': 0})
+                            st.session_state.carrito.append({'id': f"C-{c['id']}", 'nombre': f"COMBO: {c['nombre_combo']}", 'venta': float(c['precio_combo']), 'costo': 0, 'imagen_path': ""})
                             st.toast(f"¡{c['nombre_combo']} al carrito!")
 
         # Categorías y Productos
@@ -345,7 +372,6 @@ if menu == "🛒 Tienda Online":
                             st.markdown('<div class="product-card">', unsafe_allow_html=True)
                             c1, c2, c3 = st.columns([1, 2, 1])
                             
-                            # Manejo de imagen
                             img_p = p['imagen_path'] if p['imagen_path'] and os.path.exists(str(p['imagen_path'])) else None
                             if img_p:
                                 c1.image(img_p, width=120)
@@ -362,34 +388,42 @@ if menu == "🛒 Tienda Online":
                             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_carrito:
+        # Ancla para el botón flotante
         st.markdown('<div id="mi-pedido"></div>', unsafe_allow_html=True)
         if st.session_state.carrito:
+            st.markdown("### 🛒 Tu Lista de Antojitos")
+            
+            for index, row in enumerate(st.session_state.carrito):
+                with st.container(border=True):
+                    col_img, col_info, col_p, col_x = st.columns([1, 2, 1, 1])
+                    img_c = row.get('imagen_path', "")
+                    if img_c and os.path.exists(str(img_c)):
+                        col_img.image(img_c, width=60)
+                    else:
+                        col_img.markdown("🍪")
+                    
+                    col_info.write(f"**{row['nombre']}**")
+                    col_p.write(f"S/ {float(row['venta']):.2f}")
+                    if col_x.button("❌", key=f"rem_{index}"):
+                        st.session_state.carrito.pop(index)
+                        st.rerun()
+
+            # Cálculos
             df_cart = pd.DataFrame(st.session_state.carrito)
-            # Costo de delivery según zona (puedes parametrizarlo)
             delivery_cost = 2.0
             subtotal = df_cart['venta'].astype(float).sum()
             total = subtotal + delivery_cost
-            
-            st.markdown("### 🛒 Tu Lista de Antojitos")
-            for index, row in df_cart.iterrows():
-                col_i, col_p, col_x = st.columns([3, 1, 1])
-                col_i.write(f"**{row['nombre']}**")
-                col_p.write(f"S/ {float(row['venta']):.2f}")
-                if col_x.button("❌", key=f"rem_{index}"):
-                    st.session_state.carrito.pop(index)
-                    st.rerun()
 
             st.markdown("---")
-            st.markdown(f"**Subtotal:** S/ {subtotal:.2f}")
-            st.markdown(f"**Delivery:** S/ {delivery_cost:.2f}")
+            st.markdown(f"**Subtotal:** S/ {subtotal:.2f} | **Delivery:** S/ {delivery_cost:.2f}")
             st.markdown(f"## **Total: S/ {total:.2f}**")
 
             with st.container(border=True):
                 st.subheader("📝 Datos Finales")
-                u_cel = st.text_input("Tu número de Celular", max_chars=9)
+                u_cel = st.text_input("Tu número de Celular", max_chars=9, placeholder="999888777")
                 u_dir = st.text_area("Dirección exacta / Nro Dpto / Referencia")
                 
-                metodo = st.radio("¿Cómo deseas pagar?", ["Yape / Plin", "Efectivo"])
+                metodo = st.radio("¿Cómo deseas pagar?", ["Yape / Plin", "Efectivo"], horizontal=True)
                 cap_pago = None
                 vuelto_de = 0
                 
@@ -403,13 +437,20 @@ if menu == "🛒 Tienda Online":
                 else:
                     vuelto_de = st.number_input("¿Con cuánto pagarás? (Para llevarte vuelto)", min_value=total)
 
+                # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
+                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total es **S/ {total:.2f}**.")
+
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
-                        st.error("Por favor, completa tu celular y dirección correctamente.")
+                        st.error("Por favor, completa tu celular (9 dígitos) y dirección correctamente.")
                     else:
+                        # Guardar copia del pedido para seguimiento post-compra
+                        st.session_state.ultimo_pedido_json = df_cart.to_json(orient='records')
+                        
                         # Guardar captura si existe
                         p_path = ""
                         if cap_pago:
+                            if not os.path.exists("capturas_yape"): os.makedirs("capturas_yape")
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
@@ -417,11 +458,11 @@ if menu == "🛒 Tienda Online":
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
-                        # Cálculo de ganancia
                         try:
-                            ganancia_p = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
+                            ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
+                            ganancia_final = ganancia_prod + delivery_cost
                         except:
-                            ganancia_p = 0
+                            ganancia_final = delivery_cost
                             
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
@@ -430,9 +471,9 @@ if menu == "🛒 Tienda Online":
                             "celular": u_cel, 
                             "direccion": u_dir, 
                             "zona": zona,
-                            "productos_json": df_cart.to_json(orient='records'), 
+                            "productos_json": st.session_state.ultimo_pedido_json, 
                             "total": total,
-                            "ganancia": ganancia_p, 
+                            "ganancia": ganancia_final, 
                             "metodo_pago": metodo, 
                             "monto_pagado": vuelto_de,
                             "captura_pago": p_path, 
@@ -529,28 +570,67 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
     df_v = load_data("pedidos")
     
     if not df_v.empty:
+        # --- LIMPIEZA AUTOMÁTICA DE PRUEBAS ---
+        antes_limpieza = len(df_v)
+        df_v = df_v[~df_v['cliente'].str.lower().str.strip().isin(['prueba', 'pruebas'])]
+        if len(df_v) < antes_limpieza:
+            update_data(df_v, "pedidos")
+            st.rerun()
+
+        # Conversión de datos
         df_v['total'] = df_v['total'].astype(float)
         df_v['ganancia'] = df_v['ganancia'].astype(float)
         
+        # --- CÁLCULO DE GANANCIA CORRECTO ---
+        # Sumamos la ganancia de productos guardada + S/ 2.00 por cada fila (pedido)
+        ganancia_productos = df_v['ganancia'].sum()
+        ganancia_delivery = len(df_v) * 2.0
+        ganancia_total_real = ganancia_productos + ganancia_delivery
+        
         # Métricas
         m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Ventas Totales", f"S/ {df_v['total'].sum():.2f}")
-        m2.metric("Ganancia Total", f"S/ {df_v['ganancia'].sum():.2f}", delta=f"{df_v['ganancia'].sum()/df_v['total'].sum()*100:.1f}%")
+        total_ventas = df_v['total'].sum()
+        m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
+        
+        porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
+        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}%")
+        
         m3.metric("Pedidos", len(df_v))
         m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
 
-        # Gráfico simple de ventas
-        st.subheader("Tendencia de Ventas")
-        df_v['fecha_dt'] = pd.to_datetime(df_v['fecha'])
-        ventas_diarias = df_v.groupby(df_v['fecha_dt'].dt.date)['total'].sum()
-        st.line_chart(ventas_diarias)
+        # --- NUEVO GRÁFICO CIRCULAR (PORCENTAJES) ---
+        st.subheader("🍕 Distribución de Ventas")
+        
+        # Extraemos los nombres de productos de todos los JSON para el gráfico
+        lista_nombres = []
+        for p_json in df_v['productos_json']:
+            try:
+                items = json.loads(p_json)
+                for it in items:
+                    lista_nombres.append(it['nombre'])
+            except:
+                continue
+        
+        if lista_nombres:
+            df_pie = pd.Series(lista_nombres).value_counts().reset_index()
+            df_pie.columns = ['Producto', 'Cantidad']
+            
+            # Usamos plotly para un gráfico redondo profesional
+            import plotly.express as px
+            fig = px.pie(df_pie, values='Cantidad', names='Producto', 
+                         hole=0.4, # Lo hace tipo "Donut" que es más moderno
+                         color_discrete_sequence=px.colors.sequential.OrRd_r)
+            fig.update_traces(textposition='inside', textinfo='percent+label')
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No hay suficientes datos para generar el gráfico circular.")
 
-        # Bandeja de Pedidos
+        # Bandeja de Pedidos Activos
         st.subheader("🔔 Bandeja de Pedidos Activos")
         pendientes = df_v[df_v['estado'] == 'Nuevo'].sort_values('id', ascending=False)
         
         if pendientes.empty:
-            st.success("¡No hay pedidos pendientes! Todo entregado.")
+            st.success("¡No hay pedidos pendientes!")
         else:
             for _, ped in pendientes.iterrows():
                 with st.container(border=True):
@@ -559,22 +639,21 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
                     c_info.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
                     c_info.write(f"💰 S/ {ped['total']} ({ped['metodo_pago']})")
                     
-                    if c_accion.button(f"Marcar Entregado ✅", key=f"btn_ent_{ped['id']}"):
+                    if c_accion.button(f"Entregado ✅", key=f"btn_ent_{ped['id']}", use_container_width=True):
                         df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
                         update_data(df_v, "pedidos")
                         st.rerun()
                     
-                    with st.expander("Ver Detalle"):
-                        try:
-                            items = json.loads(ped['productos_json'])
-                            for it in items:
-                                st.write(f"- {it['nombre']} (S/ {it['venta']})")
-                        except:
-                            st.write("Error cargando detalle.")
+                    if c_accion.button(f"Eliminar 🗑️", key=f"btn_del_{ped['id']}", use_container_width=True):
+                        df_v = df_v[df_v['id'] != ped['id']]
+                        update_data(df_v, "pedidos")
+                        st.rerun()
 
         st.markdown("---")
-        st.subheader("📥 Exportar Datos")
-        st.download_button("Descargar Todo en Excel", data=to_excel(df_v), file_name=f"ventas_jorpao_{get_peru_time().strftime('%Y%m%d')}.xlsx")
+        st.subheader("📥 Exportar Reporte")
+        st.download_button("Descargar Excel", data=to_excel(df_v), 
+                           file_name=f"ventas_jorpao_{get_peru_time().strftime('%Y%m%d')}.xlsx",
+                           use_container_width=True)
     else:
         st.info("Aún no hay datos de ventas.")
 
