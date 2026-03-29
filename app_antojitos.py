@@ -603,24 +603,24 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         df_v['total'] = pd.to_numeric(df_v['total'], errors='coerce').fillna(0)
         df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
-        # --- 3. MÉTRICAS (Lógica de ganancia corregida) ---
+        # --- 3. MÉTRICAS (Cálculo Dinámico con Delivery Variable) ---
         total_ventas = df_v['total'].sum()
 
-        # 1. Ganancia base de los productos (lo que ya está en la columna 'ganancia' del Excel)
-        ganancia_productos_base = df_v['ganancia'].sum()
+        # 1. Ganancia neta de productos (Suma de la columna 'ganancia' del Excel)
+        ganancia_prod_base = df_v['ganancia'].sum()
 
-        # 2. Ganancia por Delivery (Se cobra una sola vez por cada fila/pedido)
-        # Usamos 'costo_delivery' que viene de tu st.number_input del Sidebar
+        # 2. Ganancia por Delivery (Considera el precio actual del Sidebar)
+        # Se multiplica el 'costo_delivery' del Sidebar por el número de pedidos
         cantidad_pedidos = len(df_v)
-        ganancia_delivery_total = cantidad_pedidos * costo_delivery
+        ganancia_deliv_dinamica = cantidad_pedidos * costo_delivery
 
-        # 3. Ganancia Total Real
-        ganancia_total_real = ganancia_productos_base + ganancia_delivery_total
+        # 3. Ganancia Total Real (Suma ambos conceptos)
+        ganancia_total_real = ganancia_prod_base + ganancia_deliv_dinamica
 
         # Cálculo de rentabilidad
         porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
 
-        # Mostrar en pantalla
+        # Mostrar en pantalla con alineación exacta
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
         m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
@@ -669,16 +669,25 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
                     st.write(f"💰 **Total: S/ {ped['total']:.2f}** | Estado: `{ped['estado']}`")
                     
                     # --- DETALLE QUIRÚRGICO DE PRODUCTOS ---
-                    with st.expander("📦 Ver productos del pedido"):
-                        try:
-                            import json
-                            # Intentamos cargar el JSON de productos
-                            items = json.loads(ped['productos_json'])
-                            for it in items:
-                                st.write(f"• {it['cantidad']}x **{it['nombre']}** - S/ {it['subtotal']:.2f}")
-                        except Exception:
-                            # Si no es un JSON válido, mostramos el texto tal cual
-                            st.write(f"Detalle: {ped['productos_json']}")
+                with st.expander("📦 Ver productos del pedido"):
+                    try:
+                        import json
+                        # Convertimos el texto JSON a una lista de Python
+                        # Si ya es una lista, la usamos directamente; si es texto, la cargamos
+                        items = json.loads(ped['productos_json']) if isinstance(ped['productos_json'], str) else ped['productos_json']
+                        
+                        # Mostramos cada producto con su cantidad y nombre
+                        for it in items:
+                            # Usamos .get() por seguridad en caso de que alguna llave falte
+                            nombre = it.get('nombre', 'Producto')
+                            cantidad = it.get('cantidad', 1)
+                            # Intentamos mostrar el subtotal o el precio de venta si el subtotal no existe
+                            precio = it.get('subtotal', it.get('venta', 0))
+                            
+                            st.write(f"• {int(cantidad)}x **{nombre}** - S/ {precio:.2f}")
+                    except Exception:
+                        # Si hay un error de formato, mostramos el texto crudo para no perder la información
+                        st.write(f"Detalle: {ped['productos_json']}")
                 
                 with c_accion:
                     # Acción: Entregar
@@ -729,11 +738,14 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
 elif menu == "🎁 Gestionar Combos" and is_admin:
     st.header("🎁 Configuración de Combos")
     
-    # 1. FORMULARIO DE CREACIÓN
     with st.container(border=True):
         st.subheader("Crear Nuevo Combo")
         c_n = st.text_input("Nombre del Combo (Ej: Combo Peliculero)")
-        c_p = st.number_input("Precio del Combo", min_value=0.0)
+        
+        col_pre, col_gan = st.columns(2)
+        c_p = col_pre.number_input("Precio de Venta al Público", min_value=0.0)
+        # NUEVO: Entrada manual para la ganancia neta del combo
+        c_g = col_gan.number_input("Ganancia Neta Manual (S/.)", min_value=0.0, help="Calcula el precio de venta menos tus costos con descuento.")
         
         st.write("Añadir productos al combo:")
         df_p_sel = load_data("productos")
@@ -751,15 +763,25 @@ elif menu == "🎁 Gestionar Combos" and is_admin:
                 st.session_state.temp_combo_items = []
                 st.rerun()
         
-        if st.button("Guardar Combo"):
+        if st.button("Guardar Combo", use_container_width=True):
             if c_n and st.session_state.temp_combo_items:
                 df_combos_act = load_data("combos")
                 nid = int(df_combos_act['id'].max() + 1) if not df_combos_act.empty else 1
                 receta = ", ".join(st.session_state.temp_combo_items)
-                new_c = pd.DataFrame([{"id": nid, "nombre_combo": c_n, "productos_ids": receta, "precio_combo": c_p, "activo": 1}])
+                
+                # Sincronizado con las columnas de tu Sheets: id, nombre, productos, precio, GANANCIA, activo
+                new_c = pd.DataFrame([{
+                    "id": nid, 
+                    "nombre_combo": c_n, 
+                    "productos_ids": receta, 
+                    "precio_combo": c_p, 
+                    "ganancia_combo": c_g, # Se guarda en la columna E
+                    "activo": 1
+                }])
+                
                 update_data(pd.concat([df_combos_act, new_c], ignore_index=True), "combos")
                 st.session_state.temp_combo_items = []
-                st.success("¡Combo registrado!")
+                st.success(f"¡Combo '{c_n}' registrado con ganancia de S/ {c_g:.2f}!")
                 st.rerun()
 
     # 2. SECCIÓN DE GESTIÓN (EDITAR / BORRAR)
