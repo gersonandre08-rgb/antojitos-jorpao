@@ -257,60 +257,31 @@ with st.sidebar:
 # ==============================================================================
 # VISTA: TIENDA ONLINE (LÓGICA COMPLETA)
 # ==============================================================================
-    if menu == "🛒 Tienda Online":
+if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
-    # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN CORREGIDA) ---
-    if st.session_state.carrito and not st.session_state.pedido_exitoso:
+    # Botón flotante del carrito
+    if st.session_state.carrito:
         cant_items = len(st.session_state.carrito)
         st.markdown(f"""
-            <style>
-            .floating-cart {{
-                position: fixed; bottom: 85px; right: 20px; z-index: 999;
-                background: #FF4500; color: white !important; padding: 15px 20px;
-                border-radius: 50px; text-decoration: none !important; font-weight: bold;
-                box-shadow: 2px 4px 10px rgba(0,0,0,0.3); border: 2px solid white;
-                display: flex; align-items: center; transition: 0.3s;
-                cursor: pointer; border: none; font-family: sans-serif;
-            }}
-            .floating-cart:hover {{ transform: scale(1.05); background: #e63e00; }}
-            </style>
-            
-            <button class="floating-cart" onclick="document.getElementById('mi-pedido').scrollIntoView({{behavior: 'smooth'}})">
-                <span>🛒 VER MI RESUMEN ({cant_items})</span>
-            </button>
+            <a href="#mi-pedido" class="floating-cart">
+                <span>🛒 VER MI PEDIDO ({cant_items})</span>
+            </a>
         """, unsafe_allow_html=True)
 
-    # --- 2. PANTALLA DE ÉXITO Y SEGUIMIENTO POST-ENVÍO ---
+    # Pantalla de Éxito
     if st.session_state.pedido_exitoso:
         st.balloons()
         st.success("## ✅ ¡Pedido recibido con éxito!")
-        st.markdown(f"""
+        st.markdown("""
             ### Pasos a seguir:
             1. Haz clic en el botón verde de abajo para avisarnos por WhatsApp.
             2. La vecina confirmará tu pedido en unos minutos.
             3. ¡Prepara el hambre! 😋
         """)
         st.markdown(f'<a href="https://wa.me/51963142733?text=Hola%20JorPao!%20Acabo%20de%20hacer%20un%20pedido%20en%20la%20web.%20Mi%20nombre%20es%20{st.session_state.nombre_usuario}" target="_blank"><button style="width:100%;height:60px;background:#25D366;color:white;border:none;border-radius:15px;font-weight:bold;font-size:18px;cursor:pointer;">🟢 ENVIAR WHATSAPP DE CONFIRMACIÓN</button></a>', unsafe_allow_html=True)
-        
-        # Nueva opción para ver el pedido solicitado después de enviar
-        if st.button("📋 Ver resumen de mi pedido solicitado", use_container_width=True):
-            st.session_state.mostrar_detalle_ultimo = True
-        
-        if st.session_state.get('mostrar_detalle_ultimo'):
-            try:
-                df_ultimo = pd.read_json(st.session_state.ultimo_pedido_json)
-                with st.expander("📝 Detalle de tu pedido enviado", expanded=True):
-                    for _, item in df_ultimo.iterrows():
-                        st.write(f"• {item['nombre']} - S/ {float(item['venta']):.2f}")
-                    st.divider()
-                    st.write(f"**Total pagado: S/ {df_ultimo['venta'].astype(float).sum() + 2.0:.2f}**")
-            except:
-                st.info("Tu pedido ya está en proceso.")
-
         if st.button("⬅️ Regresar a la Vitrina"): 
             st.session_state.pedido_exitoso = False
-            st.session_state.mostrar_detalle_ultimo = False
             st.rerun()
         st.stop()
 
@@ -390,14 +361,16 @@ with st.sidebar:
                             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_carrito:
-        # Ancla para el botón flotante (Mantenida arriba del contenido)
-        st.markdown('<div id="mi-pedido" style="padding-top: 1px;"></div>', unsafe_allow_html=True)
+        st.markdown('<div id="mi-pedido"></div>', unsafe_allow_html=True)
         if st.session_state.carrito:
             st.markdown("### 🛒 Tu Lista de Antojitos")
             
+            # --- RENDERIZADO DEL CARRITO CON MINIATURAS ---
             for index, row in enumerate(st.session_state.carrito):
                 with st.container(border=True):
                     col_img, col_info, col_p, col_x = st.columns([1, 2, 1, 1])
+                    
+                    # Miniatura
                     img_c = row.get('imagen_path', "")
                     if img_c and os.path.exists(str(img_c)):
                         col_img.image(img_c, width=60)
@@ -417,7 +390,8 @@ with st.sidebar:
             total = subtotal + delivery_cost
 
             st.markdown("---")
-            st.markdown(f"**Subtotal:** S/ {subtotal:.2f} | **Delivery:** S/ {delivery_cost:.2f}")
+            st.markdown(f"**Subtotal:** S/ {subtotal:.2f}")
+            st.markdown(f"**Delivery:** S/ {delivery_cost:.2f}")
             st.markdown(f"## **Total: S/ {total:.2f}**")
 
             with st.container(border=True):
@@ -440,15 +414,12 @@ with st.sidebar:
                     vuelto_de = st.number_input("¿Con cuánto pagarás? (Para llevarte vuelto)", min_value=total)
 
                 # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
-                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total es **S/ {total:.2f}**.")
+                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery).")
 
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
                         st.error("Por favor, completa tu celular (9 dígitos) y dirección correctamente.")
                     else:
-                        # Guardar copia del pedido para seguimiento post-compra
-                        st.session_state.ultimo_pedido_json = df_cart.to_json(orient='records')
-                        
                         # Guardar captura si existe
                         p_path = ""
                         if cap_pago:
@@ -456,10 +427,11 @@ with st.sidebar:
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets (o archivo local según tu configuración)
+                        # Guardar en GSheets
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
+                        # Cálculo de ganancia real (Venta - Costo) + Delivery
                         try:
                             ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
                             ganancia_final = ganancia_prod + delivery_cost
@@ -473,7 +445,7 @@ with st.sidebar:
                             "celular": u_cel, 
                             "direccion": u_dir, 
                             "zona": zona,
-                            "productos_json": st.session_state.ultimo_pedido_json, 
+                            "productos_json": df_cart.to_json(orient='records'), 
                             "total": total,
                             "ganancia": ganancia_final, 
                             "metodo_pago": metodo, 
@@ -483,19 +455,6 @@ with st.sidebar:
                         }])
                         
                         update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
-
-                        # Actualizar Stock
-                        df_prods_upd = load_data("productos")
-                        for pid in df_cart['id']:
-                            if str(pid).isdigit():
-                                df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
-                        update_data(df_prods_upd, "productos")
-
-                        st.session_state.carrito = []
-                        st.session_state.pedido_exitoso = True
-                        st.rerun()
-        else:
-            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
                         
                         # Actualizar Stock
                         df_prods_upd = load_data("productos")
