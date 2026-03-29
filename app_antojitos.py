@@ -771,56 +771,77 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         st.info("Aún no hay datos de ventas registrados.")
 
 # ==============================================================================
-# VISTA: COMBOS (ADMIN)
+# VISTA: COMBOS (ADMIN) - CORREGIDO Y SINCRONIZADO
 # ==============================================================================
 elif menu == "🎁 Gestionar Combos" and is_admin:
     st.header("🎁 Configuración de Combos")
+    
+    # Inicializar lista temporal si no existe
+    if 'temp_combo_items' not in st.session_state:
+        st.session_state.temp_combo_items = []
     
     with st.container(border=True):
         st.subheader("Crear Nuevo Combo")
         c_n = st.text_input("Nombre del Combo (Ej: Combo Peliculero)")
         
         col_pre, col_gan = st.columns(2)
-        c_p = col_pre.number_input("Precio de Venta al Público", min_value=0.0)
-        # NUEVO: Entrada manual para la ganancia neta del combo
-        c_g = col_gan.number_input("Ganancia Neta Manual (S/.)", min_value=0.0, help="Calcula el precio de venta menos tus costos con descuento.")
+        c_p = col_pre.number_input("Precio de Venta al Público (S/.)", min_value=0.0, format="%.2f")
         
-        st.write("Añadir productos al combo:")
+        # Entrada manual para la ganancia neta (Ej: los S/ 2.90 que mencionamos)
+        c_g = col_gan.number_input("Ganancia Neta Manual (S/.)", min_value=0.0, 
+                                   help="Calcula el precio de venta menos tus costos con descuento.", format="%.2f")
+        
+        st.write("---")
+        st.write("🛒 **Añadir productos al combo:**")
         df_p_sel = load_data("productos")
-        col_ps, col_pc, col_pb = st.columns([3, 1, 1])
         
-        sel_p = col_ps.selectbox("Producto", df_p_sel['nombre'].tolist() if not df_p_sel.empty else [])
-        sel_c = col_pc.number_input("Cant.", min_value=1, value=1)
-        
-        if col_pb.button("➕"):
-            st.session_state.temp_combo_items.append(f"{sel_c}x {sel_p}")
+        if not df_p_sel.empty:
+            col_ps, col_pc, col_pb = st.columns([3, 1, 1])
+            sel_p = col_ps.selectbox("Selecciona Producto", df_p_sel['nombre'].tolist())
+            sel_c = col_pc.number_input("Cant.", min_value=1, value=1)
+            
+            if col_pb.button("➕ Añadir"):
+                st.session_state.temp_combo_items.append(f"{sel_c}x {sel_p}")
+                st.rerun()
+        else:
+            st.warning("⚠️ No hay productos en inventario para crear combos.")
             
         if st.session_state.temp_combo_items:
-            st.write("**Lista actual:** " + " + ".join(st.session_state.temp_combo_items))
-            if st.button("Limpiar lista"): 
+            st.info("**Lista del combo:** " + " + ".join(st.session_state.temp_combo_items))
+            if st.button("🗑️ Limpiar lista"): 
                 st.session_state.temp_combo_items = []
                 st.rerun()
         
-        if st.button("Guardar Combo", use_container_width=True):
+        st.write("---")
+        if st.button("💾 GUARDAR COMBO EN SISTEMA", use_container_width=True, type="primary"):
             if c_n and st.session_state.temp_combo_items:
                 df_combos_act = load_data("combos")
-                nid = int(df_combos_act['id'].max() + 1) if not df_combos_act.empty else 1
+                
+                # Cálculo de ID robusto contra errores de formato en Sheets
+                if not df_combos_act.empty:
+                    nid = int(pd.to_numeric(df_combos_act['id'], errors='coerce').max() + 1)
+                else:
+                    nid = 1
+                
                 receta = ", ".join(st.session_state.temp_combo_items)
                 
-                # Sincronizado con las columnas de tu Sheets: id, nombre, productos, precio, GANANCIA, activo
+                # Sincronizado con: id, nombre_combo, productos_ids, precio_combo, ganancia_combo, activo
                 new_c = pd.DataFrame([{
                     "id": nid, 
                     "nombre_combo": c_n, 
                     "productos_ids": receta, 
                     "precio_combo": c_p, 
-                    "ganancia_combo": c_g, # Se guarda en la columna E
+                    "ganancia_combo": c_g, 
                     "activo": 1
                 }])
                 
+                # Guardar y limpiar
                 update_data(pd.concat([df_combos_act, new_c], ignore_index=True), "combos")
                 st.session_state.temp_combo_items = []
-                st.success(f"¡Combo '{c_n}' registrado con ganancia de S/ {c_g:.2f}!")
+                st.success(f"✅ ¡Combo '{c_n}' registrado con éxito!")
                 st.rerun()
+            else:
+                st.error("⚠️ Falta el nombre del combo o no has añadido productos.")
 
     # 2. SECCIÓN DE GESTIÓN (EDITAR / BORRAR)
     st.subheader("📋 Combos Registrados")
