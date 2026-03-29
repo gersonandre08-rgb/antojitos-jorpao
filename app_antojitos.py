@@ -260,23 +260,25 @@ with st.sidebar:
 if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
-    # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN) ---
+    # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN CORREGIDA) ---
     if st.session_state.carrito and not st.session_state.pedido_exitoso:
         cant_items = len(st.session_state.carrito)
         st.markdown(f"""
             <style>
             .floating-cart {{
                 position: fixed; bottom: 85px; right: 20px; z-index: 999;
-                background: #FF4500; color: white; padding: 15px 20px;
+                background: #FF4500; color: white !important; padding: 15px 20px;
                 border-radius: 50px; text-decoration: none !important; font-weight: bold;
                 box-shadow: 2px 4px 10px rgba(0,0,0,0.3); border: 2px solid white;
                 display: flex; align-items: center; transition: 0.3s;
+                cursor: pointer; border: none; font-family: sans-serif;
             }}
-            .floating-cart:hover {{ transform: scale(1.05); color: white; }}
+            .floating-cart:hover {{ transform: scale(1.05); background: #e63e00; }}
             </style>
-            <a href="#mi-pedido" class="floating-cart">
+            
+            <button class="floating-cart" onclick="document.getElementById('mi-pedido').scrollIntoView({{behavior: 'smooth'}})">
                 <span>🛒 VER MI RESUMEN ({cant_items})</span>
-            </a>
+            </button>
         """, unsafe_allow_html=True)
 
     # --- 2. PANTALLA DE ÉXITO Y SEGUIMIENTO POST-ENVÍO ---
@@ -388,8 +390,8 @@ if menu == "🛒 Tienda Online":
                             st.markdown('</div>', unsafe_allow_html=True)
 
     with tab_carrito:
-        # Ancla para el botón flotante
-        st.markdown('<div id="mi-pedido"></div>', unsafe_allow_html=True)
+        # Ancla para el botón flotante (Mantenida arriba del contenido)
+        st.markdown('<div id="mi-pedido" style="padding-top: 1px;"></div>', unsafe_allow_html=True)
         if st.session_state.carrito:
             st.markdown("### 🛒 Tu Lista de Antojitos")
             
@@ -481,6 +483,19 @@ if menu == "🛒 Tienda Online":
                         }])
                         
                         update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
+
+                        # Actualizar Stock
+                        df_prods_upd = load_data("productos")
+                        for pid in df_cart['id']:
+                            if str(pid).isdigit():
+                                df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
+                        update_data(df_prods_upd, "productos")
+
+                        st.session_state.carrito = []
+                        st.session_state.pedido_exitoso = True
+                        st.rerun()
+        else:
+            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
                         
                         # Actualizar Stock
                         df_prods_upd = load_data("productos")
