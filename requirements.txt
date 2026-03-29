@@ -4,3 +4,5 @@ st-gsheets-connection
 pytz
 xlsxwriter
 plotly
+google-auth
+gspread

@@ -8,6 +8,13 @@ import io
 import random
 import pytz
 
+def to_excel(df):
+    output = io.BytesIO()
+    # Usamos xlsxwriter para crear el archivo Excel en memoria
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Reporte')
+    return output.getvalue()
+
 # --- CONFIGURACIÓN DE ZONA HORARIA (PERÚ) ---
 def get_peru_time():
     lima_tz = pytz.timezone('America/Lima')
@@ -242,14 +249,32 @@ with st.sidebar:
     
     opciones = ["🛒 Tienda Online", "✍️ Dejar Reseña"]
     is_admin = False
+    
+    # 1. Definimos el costo de delivery (Editable solo si es Admin o dejarlo fuera si quieres que sea siempre visible)
     if pwd == "jyp2026.": 
         is_admin = True
         opciones.extend(["⚙️ Gestión de Inventario", "📊 Análisis y Reportes", "🎁 Gestionar Combos", "📸 Ver Comprobantes"])
-    
+        
+        st.markdown("---")
+        st.markdown("### ⚙️ Configuración Admin")
+        # El valor se guarda en st.session_state para que persista entre menús
+        costo_delivery = st.number_input(
+            "Costo de Delivery (S/)", 
+            min_value=0.0, 
+            value=2.0, 
+            step=0.5,
+            help="Este valor afectará el total del carrito y los reportes de ganancia."
+        )
+    else:
+        # Si no es admin, usamos el valor por defecto de 2.0
+        costo_delivery = 2.0
+
+    st.markdown("---")
     menu = st.radio("Ir a:", opciones)
     
     st.markdown("---")
-    st.caption(f"Versión 2.5 - {get_peru_time().strftime('%Y')}")
+    st.caption(f"Versión 1.5 - {get_peru_time().strftime('%Y')}")
+    
     if st.button("🗑️ Vaciar Carrito"):
         st.session_state.carrito = []
         st.rerun()
@@ -302,7 +327,7 @@ if menu == "🛒 Tienda Online":
             ### Pasos a seguir:
             1. Haz clic en el botón verde de abajo para avisarnos por WhatsApp.
             2. La vecina confirmará tu pedido en unos minutos.
-            3. ¡Prepara el hambre! 😋
+            3. ¡Prepárate para disfrutar! 😋
         """)
         st.markdown(f'<a href="https://wa.me/51963142733?text=Hola%20JorPao!%20Acabo%20de%20hacer%20un%20pedido%20en%20la%20web.%20Mi%20nombre%20es%20{st.session_state.nombre_usuario}" target="_blank"><button style="width:100%;height:60px;background:#25D366;color:white;border:none;border-radius:15px;font-weight:bold;font-size:18px;cursor:pointer;">🟢 ENVIAR WHATSAPP DE CONFIRMACIÓN</button></a>', unsafe_allow_html=True)
         if st.button("⬅️ Regresar a la Vitrina"): 
@@ -439,7 +464,7 @@ if menu == "🛒 Tienda Online":
                     vuelto_de = st.number_input("¿Con cuánto pagarás? (Para llevarte vuelto)", min_value=total)
 
                 # --- RESUMEN DE CONFIRMACIÓN ANTES DEL BOTÓN ---
-                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery).")
+                st.info(f"💡 Vecino/a, vas a pedir **{len(st.session_state.carrito)} productos**. El total a pagar es **S/ {total:.2f}** (incluye delivery). ***No olvides enviar el comprobante de pago si es yape***")
 
                 if st.button("🚀 CONFIRMAR Y ENVIAR PEDIDO", type="primary", use_container_width=True):
                     if not u_cel or not u_dir or len(u_cel) < 9:
@@ -566,7 +591,7 @@ elif menu == "⚙️ Gestión de Inventario" and is_admin:
 elif menu == "📊 Análisis y Reportes" and is_admin:
     st.header("📊 Análisis de Ventas")
     
-    # Intentar cargar datos
+    # --- 1. CARGA DE DATOS ---
     try:
         df_v = load_data("pedidos")
     except Exception as e:
@@ -574,43 +599,30 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         st.stop()
     
     if not df_v.empty:
-        # --- LIMPIEZA AUTOMÁTICA DE PRUEBAS ---
-        # Filtramos filas donde el nombre sea 'prueba' o 'pruebas'
-        antes_limpieza = len(df_v)
-        df_v = df_v[~df_v['cliente'].astype(str).str.lower().str.strip().isin(['prueba', 'pruebas'])]
-        
-        # Si se eliminaron filas de prueba, actualizamos Google Sheets automáticamente
-        if len(df_v) < antes_limpieza:
-            update_data(df_v, "pedidos")
-            st.rerun()
-
-        # --- CONVERSIÓN Y LIMPIEZA DE DATOS ---
+        # --- 2. CONVERSIÓN DE DATOS ---
         df_v['total'] = pd.to_numeric(df_v['total'], errors='coerce').fillna(0)
         df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
-        # --- CÁLCULO DE MÉTRICAS ---
+        # --- 3. MÉTRICAS (Lógica de ganancia actualizada con costo_delivery) ---
         total_ventas = df_v['total'].sum()
         
-        # Ganancia real: Suma de la columna ganancia + el margen de delivery (S/ 2.00 por pedido)
+        # Sumamos la ganancia de productos + el margen de delivery configurable
         ganancia_productos = df_v['ganancia'].sum()
-        ganancia_delivery = len(df_v) * 2.0
-        ganancia_total_real = ganancia_productos + ganancia_delivery
+        ganancia_delivery_total = len(df_v) * costo_delivery 
+        ganancia_total_real = ganancia_productos + ganancia_delivery_total
         
         porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
 
-        # Mostrar Métricas en columnas
         m1, m2, m3, m4 = st.columns(4)
         m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
-        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
+        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}%")
         m3.metric("Pedidos Totales", len(df_v))
         m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
 
         st.markdown("---")
 
-        # --- GRÁFICO DE PRODUCTOS MÁS VENDIDOS ---
+        # --- 4. GRÁFICO DE PRODUCTOS ---
         st.subheader("🍕 Distribución de Ventas por Producto")
-        
-        # Lógica para extraer nombres del JSON de productos si existe
         lista_nombres = []
         if 'productos_json' in df_v.columns:
             import json
@@ -628,50 +640,58 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
             df_pie.columns = ['Producto', 'Cantidad']
             
             import plotly.express as px
-            fig = px.pie(df_pie, values='Cantidad', names='Producto', 
-                         hole=0.4, 
+            fig = px.pie(df_pie, values='Cantidad', names='Producto', hole=0.4, 
                          color_discrete_sequence=px.colors.sequential.OrRd_r)
             fig.update_traces(textposition='inside', textinfo='percent+label')
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("💡 Los datos detallados de productos (JSON) se mostrarán aquí conforme se registren nuevos pedidos.")
+            st.info("💡 No hay datos detallados de productos para mostrar la gráfica.")
 
-        # --- BANDEJA DE PEDIDOS ACTIVOS (GESTIÓN RÁPIDA) ---
-        st.subheader("🔔 Pedidos Pendientes (Estado: Nuevo)")
-        pendientes = df_v[df_v['estado'] == 'Nuevo'].sort_values('id', ascending=False)
+        # --- 5. BANDEJA DE GESTIÓN (TODOS LOS PEDIDOS) ---
+        st.subheader("📋 Gestión de Pedidos")
         
-        if pendientes.empty:
-            st.success("✅ ¡No hay pedidos pendientes de entrega!")
-        else:
-            for _, ped in pendientes.iterrows():
-                with st.container(border=True):
-                    c_info, c_accion = st.columns([3, 1])
-                    
-                    with c_info:
-                        st.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
-                        st.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
-                        st.write(f"💰 **Total: S/ {ped['total']:.2f}** ({ped['metodo_pago']})")
-                    
-                    with c_accion:
-                        # Marcar como Entregado
-                        if st.button(f"Entregado ✅", key=f"btn_ent_{ped['id']}", use_container_width=True):
+        # Ordenamos por ID descendente para ver los últimos arriba
+        df_display = df_v.sort_values('id', ascending=False)
+        
+        for _, ped in df_display.iterrows():
+            with st.container(border=True):
+                c_info, c_accion = st.columns([3, 1])
+                
+                with c_info:
+                    st.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
+                    st.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
+                    st.write(f"💰 **Total: S/ {ped['total']:.2f}** | Estado: `{ped['estado']}`")
+                
+                with c_accion:
+                    # Acción: Entregar
+                    if ped['estado'] == 'Nuevo':
+                        if st.button(f"Entregado ✅", key=f"ent_{ped['id']}", use_container_width=True):
                             df_v.loc[df_v['id'] == ped['id'], 'estado'] = 'Entregado'
                             update_data(df_v, "pedidos")
-                            st.toast(f"Pedido #{ped['id']} marcado como entregado")
+                            st.toast(f"Pedido #{ped['id']} entregado")
                             st.rerun()
-                        
-                        # Eliminar cualquier pedido (incluye pruebas manuales)
-                        if st.button(f"Eliminar 🗑️", key=f"btn_del_{ped['id']}", use_container_width=True):
+                    
+                    # Acción: Eliminar con Confirmación
+                    if st.button(f"Eliminar 🗑️", key=f"del_init_{ped['id']}", use_container_width=True):
+                        st.session_state[f"confirm_del_{ped['id']}"] = True
+                    
+                    if st.session_state.get(f"confirm_del_{ped['id']}", False):
+                        st.warning(f"¿Borrar pedido #{ped['id']}?")
+                        if st.button("SÍ, BORRAR ❗", key=f"conf_{ped['id']}", type="primary"):
                             df_v = df_v[df_v['id'] != ped['id']]
                             update_data(df_v, "pedidos")
-                            st.toast(f"Pedido #{ped['id']} eliminado")
+                            del st.session_state[f"confirm_del_{ped['id']}"]
+                            st.success("Eliminado")
+                            st.rerun()
+                        if st.button("Cancelar", key=f"canc_{ped['id']}"):
+                            del st.session_state[f"confirm_del_{ped['id']}"]
                             st.rerun()
 
-        # --- EXPORTACIÓN ---
+        # --- 6. EXPORTACIÓN ---
         st.markdown("---")
-        st.subheader("📥 Exportar Historial Completo")
+        st.subheader("📥 Exportar Reporte")
         try:
-            excel_data =充分to_excel(df_v) # Asegúrate de tener definida la función to_excel
+            excel_data = to_excel(df_v) 
             st.download_button(
                 label="📥 Descargar Reporte en Excel",
                 data=excel_data,
@@ -679,11 +699,11 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
-        except NameError:
-            st.warning("La función de exportación a Excel requiere que 'to_excel' esté definida en tu código.")
+        except Exception as e:
+            st.warning("Define la función 'to_excel' para habilitar descargas.")
 
     else:
-        st.info("Aún no hay datos de ventas registrados en la hoja de 'pedidos'.")
+        st.info("Aún no hay datos de ventas registrados.")
 
 # ==============================================================================
 # VISTA: COMBOS (ADMIN)
