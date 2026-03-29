@@ -499,66 +499,66 @@ if menu == "🛒 Tienda Online":
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
         
-                        # Guardar Pedido
-                        df_pedidos_all = load_data("pedidos")
-                        nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
+                    # Guardar Pedido
+                    df_pedidos_all = load_data("pedidos")
+                    nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
         
-                # --- CÁLCULO DE GANANCIA CORREGIDO ---
-                        try:
-                            # Si el producto tiene 'ganancia_combo' definida (es un combo), usamos esa. 
-                            # Si no, usamos la resta tradicional de venta - costo.
+                    # --- CÁLCULO DE GANANCIA CORREGIDO ---
+                    try:
+                        # Si el producto tiene 'ganancia_combo' definida (es un combo), usamos esa. 
+                        # Si no, usamos la resta tradicional de venta - costo.
                         if 'ganancia_combo' in df_cart.columns and df_cart['ganancia_combo'].notna().any():
                             ganancia_final = df_cart['ganancia_combo'].sum()
                         else:
                             ganancia_prod = (df_cart['venta'].astype(float) - df_cart['costo'].astype(float)).sum()
                             ganancia_final = ganancia_prod # No sumamos delivery para no inflar la ganancia real
-                        except:
-                            ganancia_final = 0.0
+                    except:
+                        ganancia_final = 0.0
             
-                        nuevo_pedido = pd.DataFrame([{
-                            "id": nuevo_id, 
-                            "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
-                            "cliente": st.session_state.nombre_usuario, 
-                            "celular": u_cel, 
-                            "direccion": u_dir, 
-                            "zona": zona,
-                            "productos_json": df_cart.to_json(orient='records'), 
-                            "total": total,
-                            "ganancia": ganancia_final, 
-                            "metodo_pago": metodo, 
-                            "monto_pagado": vuelto_de,
-                            "captura_pago": p_path, 
-                            "estado": "Nuevo",
-                            "maps_link": maps_link # Se agregó la coma faltante arriba
-                        }])
+                    nuevo_pedido = pd.DataFrame([{
+                        "id": nuevo_id, 
+                        "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
+                        "cliente": st.session_state.nombre_usuario, 
+                        "celular": u_cel, 
+                        "direccion": u_dir, 
+                        "zona": zona,
+                        "productos_json": df_cart.to_json(orient='records'), 
+                        "total": total,
+                        "ganancia": ganancia_final, 
+                        "metodo_pago": metodo, 
+                        "monto_pagado": vuelto_de,
+                        "captura_pago": p_path, 
+                        "estado": "Nuevo",
+                        "maps_link": maps_link # Se agregó la coma faltante arriba
+                    }])
         
-                        update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
+                    update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
         
-                        # Actualizar Stock
-                        df_prods_upd = load_data("productos")
-                        for pid in df_cart['id']:
-                            if str(pid).isdigit():
-                                df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
-                        update_data(df_prods_upd, "productos")
+                    # Actualizar Stock
+                    df_prods_upd = load_data("productos")
+                    for pid in df_cart['id']:
+                        if str(pid).isdigit():
+                            df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
+                    update_data(df_prods_upd, "productos")
         
-                        # --- ENVÍO DE WHATSAPP ---
-                        import urllib.parse
-                        lista_ws = "\n".join([f"• {row['nombre']}" for _, row in df_cart.iterrows()])
-                        mensaje_ws = (
-                            f"🛍️ *NUEVO PEDIDO - ANTOJITOS JORPAO*\n"
-                            f"👤 *Cliente:* {st.session_state.nombre_usuario}\n"
-                            f"📍 *Dirección:* {u_dir}\n"
-                            f"📦 *Productos:*\n{lista_ws}\n"
-                            f"💰 *Total:* S/ {total:.2f}\n"
-                            f"🗺️ *Ubicación:* {maps_link}"
-                        )
-                        st.write(f"https://wa.me/51999999999?text={urllib.parse.quote(mensaje_ws)}") # Link listo para el vendedor
+                    # --- ENVÍO DE WHATSAPP ---
+                    import urllib.parse
+                    lista_ws = "\n".join([f"• {row['nombre']}" for _, row in df_cart.iterrows()])
+                    mensaje_ws = (
+                        f"🛍️ *NUEVO PEDIDO - ANTOJITOS JORPAO*\n"
+                        f"👤 *Cliente:* {st.session_state.nombre_usuario}\n"
+                        f"📍 *Dirección:* {u_dir}\n"
+                        f"📦 *Productos:*\n{lista_ws}\n"
+                        f"💰 *Total:* S/ {total:.2f}\n"
+                        f"🗺️ *Ubicación:* {maps_link}"
+                    )
+                    st.write(f"https://wa.me/51999999999?text={urllib.parse.quote(mensaje_ws)}") # Link listo para el vendedor
 
-                        st.session_state.carrito = []
-                        st.session_state.pedido_exitoso = True
-                        st.rerun()
-                        else:
-                            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
+                    st.session_state.carrito = []
+                    st.session_state.pedido_exitoso = True
+                    st.rerun()
+                    else:
+                        st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
 
 # ==============================================================================
 # VISTA: GESTIÓN DE INVENTARIO (ADMIN)
