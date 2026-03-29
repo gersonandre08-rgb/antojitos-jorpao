@@ -603,23 +603,29 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
         df_v['total'] = pd.to_numeric(df_v['total'], errors='coerce').fillna(0)
         df_v['ganancia'] = pd.to_numeric(df_v['ganancia'], errors='coerce').fillna(0)
         
-        # --- 3. MÉTRICAS (Lógica de ganancia actualizada con costo_delivery) ---
-        total_ventas = df_v['total'].sum()
-        
-        # Sumamos la ganancia de productos + el margen de delivery configurable
-        ganancia_productos = df_v['ganancia'].sum()
-        ganancia_delivery_total = len(df_v) * costo_delivery 
-        ganancia_total_real = ganancia_productos + ganancia_delivery_total
-        
-        porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
+        # --- 3. MÉTRICAS (Lógica de ganancia corregida) ---
+total_ventas = df_v['total'].sum()
 
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
-        m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}%")
-        m3.metric("Pedidos Totales", len(df_v))
-        m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
+# 1. Ganancia base de los productos (lo que ya está en la columna 'ganancia' del Excel)
+ganancia_productos_base = df_v['ganancia'].sum()
 
-        st.markdown("---")
+# 2. Ganancia por Delivery (Se cobra una sola vez por cada fila/pedido)
+# Usamos 'costo_delivery' que viene de tu st.number_input del Sidebar
+cantidad_pedidos = len(df_v)
+ganancia_delivery_total = cantidad_pedidos * costo_delivery
+
+# 3. Ganancia Total Real
+ganancia_total_real = ganancia_productos_base + ganancia_delivery_total
+
+# Cálculo de rentabilidad
+porcentaje_rentabilidad = (ganancia_total_real / total_ventas * 100) if total_ventas > 0 else 0
+
+# Mostrar en pantalla
+m1, m2, m3, m4 = st.columns(4)
+m1.metric("Ventas Totales", f"S/ {total_ventas:.2f}")
+m2.metric("Ganancia Total", f"S/ {ganancia_total_real:.2f}", delta=f"{porcentaje_rentabilidad:.1f}% Retorno")
+m3.metric("Pedidos Totales", cantidad_pedidos)
+m4.metric("Ticket Promedio", f"S/ {df_v['total'].mean():.2f}")
 
         # --- 4. GRÁFICO DE PRODUCTOS ---
         st.subheader("🍕 Distribución de Ventas por Producto")
@@ -661,6 +667,18 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
                     st.markdown(f"**Pedido #{ped['id']} - {ped['cliente']}**")
                     st.write(f"📍 {ped['direccion']} | 📱 {ped['celular']}")
                     st.write(f"💰 **Total: S/ {ped['total']:.2f}** | Estado: `{ped['estado']}`")
+                    
+                    # --- DETALLE QUIRÚRGICO DE PRODUCTOS ---
+                    with st.expander("📦 Ver productos del pedido"):
+                        try:
+                            import json
+                            # Intentamos cargar el JSON de productos
+                            items = json.loads(ped['productos_json'])
+                            for it in items:
+                                st.write(f"• {it['cantidad']}x **{it['nombre']}** - S/ {it['subtotal']:.2f}")
+                        except Exception:
+                            # Si no es un JSON válido, mostramos el texto tal cual
+                            st.write(f"Detalle: {ped['productos_json']}")
                 
                 with c_accion:
                     # Acción: Entregar
@@ -711,6 +729,7 @@ elif menu == "📊 Análisis y Reportes" and is_admin:
 elif menu == "🎁 Gestionar Combos" and is_admin:
     st.header("🎁 Configuración de Combos")
     
+    # 1. FORMULARIO DE CREACIÓN
     with st.container(border=True):
         st.subheader("Crear Nuevo Combo")
         c_n = st.text_input("Nombre del Combo (Ej: Combo Peliculero)")
@@ -728,7 +747,9 @@ elif menu == "🎁 Gestionar Combos" and is_admin:
             
         if st.session_state.temp_combo_items:
             st.write("**Lista actual:** " + " + ".join(st.session_state.temp_combo_items))
-            if st.button("Limpiar lista"): st.session_state.temp_combo_items = []
+            if st.button("Limpiar lista"): 
+                st.session_state.temp_combo_items = []
+                st.rerun()
         
         if st.button("Guardar Combo"):
             if c_n and st.session_state.temp_combo_items:
@@ -740,6 +761,34 @@ elif menu == "🎁 Gestionar Combos" and is_admin:
                 st.session_state.temp_combo_items = []
                 st.success("¡Combo registrado!")
                 st.rerun()
+
+    # 2. SECCIÓN DE GESTIÓN (EDITAR / BORRAR)
+    st.subheader("📋 Combos Registrados")
+    df_c_list = load_data("combos")
+    
+    if not df_c_list.empty:
+        for index, row in df_c_list.iterrows():
+            with st.container(border=True):
+                col_info, col_edit, col_del = st.columns([3, 1, 1])
+                
+                with col_info:
+                    st.markdown(f"**{row['nombre_combo']}**")
+                    st.caption(f"Contenido: {row['productos_ids']}")
+                    st.write(f"💰 Precio: S/ {row['precio_combo']:.2f}")
+                
+                # BOTÓN EDITAR: Carga los datos en el formulario superior
+                if col_edit.button("📝 Editar", key=f"edit_c_{row['id']}", use_container_width=True):
+                    st.session_state.temp_combo_items = row['productos_ids'].split(", ")
+                    st.info(f"Cargado '{row['nombre_combo']}' para editar. Modifica arriba y vuelve a guardar.")
+                
+                # BOTÓN BORRAR: Elimina la fila del Excel
+                if col_del.button("🗑️ Borrar", key=f"del_c_{row['id']}", use_container_width=True):
+                    df_c_list = df_c_list.drop(index)
+                    update_data(df_c_list, "combos")
+                    st.success(f"Combo #{row['id']} eliminado")
+                    st.rerun()
+    else:
+        st.info("No hay combos creados todavía.")
 
 # ==============================================================================
 # VISTA: RESEÑAS
@@ -782,15 +831,34 @@ elif menu == "✍️ Dejar Reseña":
 elif menu == "📸 Ver Comprobantes" and is_admin:
     st.header("📸 Galería de Pagos Yape/Plin")
     df_img = load_data("pedidos")
+    
+    # Filtramos pedidos que tengan una ruta de captura de pago registrada
     df_img = df_img[df_img['captura_pago'] != ""]
     
     if not df_img.empty:
-        for _, row in df_img.iterrows():
+        # Mostramos de los más recientes a los más antiguos
+        for _, row in df_img.sort_values('id', ascending=False).iterrows():
             with st.container(border=True):
-                st.write(f"Pedido #{row['id']} - {row['cliente']}")
-                if os.path.exists(str(row['captura_pago'])):
-                    st.image(row['captura_pago'], width=300)
+                st.subheader(f"Pedido #{row['id']} - {row['cliente']}")
+                st.write(f"📅 Fecha: {row['fecha']} | 💰 Total: S/ {row['total']:.2f}")
+                
+                ruta_foto = str(row['captura_pago'])
+                
+                if os.path.exists(ruta_foto):
+                    # Mostramos la imagen en pantalla
+                    st.image(ruta_foto, caption=f"Comprobante de {row['cliente']}", width=350)
+                    
+                    # --- OPCIÓN DE DESCARGA ---
+                    with open(ruta_foto, "rb") as file:
+                        btn = st.download_button(
+                            label="📥 Descargar Comprobante",
+                            data=file,
+                            file_name=f"comprobante_pedido_{row['id']}.png",
+                            mime="image/png",
+                            use_container_width=True
+                        )
                 else:
-                    st.error("Archivo no encontrado en el servidor.")
+                    st.error(f"⚠️ El archivo '{ruta_foto}' no se encuentra en el servidor.")
+                    st.info("Esto puede pasar si la imagen se borró de la carpeta temporal o si hubo un error en la subida.")
     else:
-        st.write("No hay capturas de pantalla registradas.")
+        st.info("Aún no hay capturas de pantalla registradas en el sistema.")
