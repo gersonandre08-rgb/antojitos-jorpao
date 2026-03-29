@@ -191,23 +191,22 @@ st.markdown("""
     <div class="subtitle">¡ENDULZAMOS TU DIA, VECINO/A!</div>
 """, unsafe_allow_html=True)
 
-# --- 2. GESTIÓN DE PERSISTENCIA (CONFIGURACIÓN ORIGINAL ESTABLE) ---
+# --- 2. GESTIÓN DE PERSISTENCIA (CONFIGURACIÓN ESTABLE) ---
 from streamlit_gsheets import GSheetsConnection
 
-# Conexión global única
+# Conexión única para toda la app
 conn_gs = st.connection("gsheets", type=GSheetsConnection)
 
 def load_data(worksheet_name):
     try:
-        # Lectura directa. ttl=0 asegura que veas los cambios de stock al instante.
+        # Lectura directa sin TTL para evitar datos corruptos de la caché
         df = conn_gs.read(worksheet=worksheet_name, ttl=0)
         
         if df is None or df.empty:
             return pd.DataFrame()
         
-        # Solo aplicamos formatos básicos para que el editor de Streamlit no falle
+        # Sincronización básica de tipos para evitar errores en el editor
         if worksheet_name == "productos":
-            # Aseguramos que las columnas numéricas no tengan textos raros
             for col in ['stock', 'venta', 'costo']:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
@@ -215,19 +214,19 @@ def load_data(worksheet_name):
             
         return df
     except Exception as e:
-        # Si sale el 400 aquí, el problema es el nombre de la pestaña en el Excel
-        st.error(f"Error de conexión con la pestaña '{worksheet_name}': {e}")
+        # Si ves un Error 400 aquí, revisa que el nombre de la pestaña coincida exactamente
+        st.error(f"Error de comunicación con '{worksheet_name}': {e}")
         return pd.DataFrame()
 
 def update_data(df, worksheet):
     try:
-        # Guardado directo. Importante: no filtramos filas para mantener el rango de Google.
+        # Actualización directa a la pestaña correspondiente
         conn_gs.update(worksheet=worksheet, data=df)
-        # Limpiamos la memoria de la app para forzar la recarga
+        # Limpieza obligatoria de caché tras actualizar para que los datos nuevos carguen
         st.cache_data.clear()
-        st.success(f"✅ ¡Pestaña '{worksheet}' actualizada!")
+        st.success(f"¡Base de datos '{worksheet}' actualizada!")
     except Exception as e:
-        st.error(f"❌ Error al guardar: {e}")
+        st.error(f"❌ Error al guardar en {worksheet}: {e}")
 
 # --- 3. FUNCIONES DE LÓGICA DE NEGOCIO ---
 def obtener_sugerencia_clima():
