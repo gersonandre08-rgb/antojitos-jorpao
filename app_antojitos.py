@@ -257,7 +257,7 @@ with st.sidebar:
 # ==============================================================================
 # VISTA: TIENDA ONLINE (LÓGICA COMPLETA)
 # ==============================================================================
-if menu == "🛒 Tienda Online":
+    if menu == "🛒 Tienda Online":
     notificacion_simulada()
 
     # --- 1. BOTÓN FLOTANTE (REDIRECCIÓN AL RESUMEN CORREGIDA) ---
@@ -456,7 +456,7 @@ if menu == "🛒 Tienda Online":
                             p_path = f"capturas_yape/p_{u_cel}_{get_peru_time().strftime('%H%M%S')}.png"
                             with open(p_path, "wb") as f: f.write(cap_pago.getbuffer())
                         
-                        # Guardar en GSheets
+                        # Guardar en GSheets (o archivo local según tu configuración)
                         df_pedidos_all = load_data("pedidos")
                         nuevo_id = int(df_pedidos_all['id'].max() + 1) if not df_pedidos_all.empty else 1
                         
