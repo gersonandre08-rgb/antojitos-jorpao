@@ -557,8 +557,8 @@ if menu == "🛒 Tienda Online":
                     st.session_state.carrito = []
                     st.session_state.pedido_exitoso = True
                     st.rerun()
-                    else:
-                        st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
+        else:
+            st.info("Tu carrito está vacío. ¡Mira nuestra vitrina y elige algo rico!")
 
 # ==============================================================================
 # VISTA: GESTIÓN DE INVENTARIO (ADMIN)
