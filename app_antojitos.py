@@ -543,13 +543,13 @@ if menu == "🛒 Tienda Online":
                         nuevo_pedido = pd.DataFrame([{
                             "id": nuevo_id, 
                             "fecha": get_peru_time().strftime("%Y-%m-%d %H:%M"),
-                            "cliente": st.session_state.nombre_usuario, 
+                            "cliente": u_nom, 
                             "celular": u_cel, 
                             "direccion": u_dir, 
                             "zona": zona,
                             "productos_json": df_cart.to_json(orient='records'), 
-                            "total": total,
-                            "ganancia": ganancia_final, 
+                            "total": total_pedido,
+                            "ganancia": ganancia_final_con_envio, 
                             "metodo_pago": metodo, 
                             "monto_pagado": vuelto_de,
                             "captura_pago": p_path, 
@@ -557,14 +557,25 @@ if menu == "🛒 Tienda Online":
                             "maps_link": maps_link # Se agregó la coma faltante arriba
                         }])
         
-                    update_data(pd.concat([df_pedidos_all, nuevo_pedido], ignore_index=True), "pedidos")
-        
-                    # Actualizar Stock
-                    df_prods_upd = load_data("productos")
-                    for pid in df_cart['id']:
-                        if str(pid).isdigit():
-                            df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= 1
-                    update_data(df_prods_upd, "productos")
+                        # --- INSERCIÓN QUIRÚRGICA ---
+                        # 1. Guardamos el pedido en la pestaña correspondiente
+                        update_data(nuevo_pedido, "pedidos")
+
+                        # Actualizar Stock
+                        df_prods_upd = load_data("productos")
+                        for pid in df_cart['id']:
+                            if str(pid).isdigit():
+                                df_prods_upd.loc[df_prods_upd['id'] == int(pid), 'stock'] -= cantidad_del_item
+                        update_data(df_prods_upd, "productos")
+            
+                        # 2. Mostramos mensaje de éxito al vecino de Callao
+                        st.success("✅ ¡Pedido enviado con éxito! Redirigiendo...")
+            
+                        # 3. Limpiamos el carrito para el siguiente pedido
+                        st.session_state.carrito = [] 
+            
+                        # 4. Forzamos el reinicio para limpiar la interfaz y evitar el Error 429
+                        st.rerun()
         
                     # --- ENVÍO DE WHATSAPP ---
                     import urllib.parse
