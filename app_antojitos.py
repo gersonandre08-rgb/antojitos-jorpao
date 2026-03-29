@@ -525,16 +525,24 @@ if menu == "🛒 Tienda Online":
                         delivery_actual = float(costo_delivery) # Usamos tu variable ajustable de envío
 
                         for item in st.session_state.carrito:
-                            # Si el ítem tiene 'productos_ids', es un combo del Excel
-                            if "productos_ids" in item or 'ganancia_combo' in item:
-                                # Usamos el valor ajustable del Excel (ej. 0.70)
-                                ganancia_item = float(item.get('ganancia_combo', 0))
+                            # 1. Verificamos si es un COMBO con ganancia manual
+                            if "ganancia_combo" in item and float(item.get("ganancia_combo", 0)) > 0:
+                                ganancia_unidad = float(item.get('ganancia_combo', 0))
 
-                        delivery_actual = float(costo_delivery) # costo_delivery viene de tu sidebar
+                            else:
+                                # 2. Si es PRODUCTO SIMPLE, calculamos: Precio - Costo
+                                v = float(item.get('precio', 0))
+                                c = float(item.get('costo', 0))
+                                ganancia_unidad = v - c
 
-                        ganancia_acumulada = sum((float(item.get('precio', 0)) - float(item.get('costo', 0))) * item.get('cantidad', 1) for item in st.session_state.carrito)
+                            # 3. Multiplicamos por la cantidad de ese ítem en el carrito
+                            cantidad_item = int(item.get('cantidad', 1))
+                            ganancia_acumulada += (ganancia_unidad * cantidad_item)
 
+                        # 4. SUMA FINAL: Ganancia neta de productos + El delivery cobrado
                         ganancia_final_con_envio = ganancia_acumulada + delivery_actual
+
+                        # 5. TOTAL A COBRAR: Suma de la columna 'venta' + delivery
                         total_pedido = df_cart['venta'].astype(float).sum() + delivery_actual
             
                         nuevo_pedido = pd.DataFrame([{
